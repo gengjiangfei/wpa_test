@@ -27,7 +27,7 @@ CFLAGS += -I$(DIR) -I$(DIR)/utils  -I$(DIR)/crypto -I$(DIR)/common -I$(DIR)/l2_p
 CC = /usr/bin/gcc
 
 all:
-	@$(CC) $(CFLAGS) -o $(TARGET)
+	@$(CC) -g $(CFLAGS) -o $(TARGET)
 
 clean:
 	# for dir in $(SUBDIRS); do \

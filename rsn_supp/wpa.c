@@ -256,7 +256,7 @@ static int wpa_supplicant_get_pmk(struct wpa_sm *sm,
 				  const u8 *pmkid)
 {
 	int abort_cached = 0;
-
+printf("%s(%d):\n",__func__,__LINE__);
 	if (pmkid && !sm->cur_pmksa) {
 		/* When using drivers that generate RSN IE, wpa_supplicant may
 		 * not have enough time to get the association information
@@ -426,9 +426,9 @@ int wpa_supplicant_send_2_of_4(struct wpa_sm *sm, const unsigned char *dst,
 	u8 *rsn_ie_buf = NULL;
 	u16 key_info;
 
-	if (wpa_ie == NULL) {
-		wpa_msg(sm->ctx->msg_ctx, MSG_WARNING, "WPA: No wpa_ie set - "
-			"cannot generate msg 2/4");
+	if (wpa_ie == NULL) 
+    {
+		printf("WPA: No wpa_ie set - ""cannot generate msg 2/4\n");
 		return -1;
 	}
 
@@ -512,8 +512,10 @@ static int wpa_derive_ptk(struct wpa_sm *sm, const unsigned char *src_addr,
 	if (wpa_key_mgmt_ft(sm->key_mgmt))
 		return wpa_derive_ptk_ft(sm, src_addr, key, ptk);
 #endif /* CONFIG_IEEE80211R */
+printf("gjf==> %s(%d): pmk_len=%d,key_mgmt=%d,pairwise_cipher=%d\n",__func__,__LINE__,sm->pmk_len,sm->key_mgmt,sm->pairwise_cipher);
+wpa_hexdump(MSG_ERROR, "WPA: wpa_derive_ptk",sm->pmk,sm->pmk_len);
 
-	return wpa_pmk_to_ptk(sm->pmk, sm->pmk_len, "Pairwise key expansion",
+    return wpa_pmk_to_ptk(sm->pmk, sm->pmk_len, "Pairwise key expansion",
 			      sm->own_addr, sm->bssid, sm->snonce,
 			      key->key_nonce, ptk, sm->key_mgmt,
 			      sm->pairwise_cipher);
@@ -533,13 +535,13 @@ static void wpa_supplicant_process_1_of_4(struct wpa_sm *sm,
 	size_t kde_len;
     printf("%s(%d):\n",__func__,__LINE__);
 
-	if (wpa_sm_get_network_ctx(sm) == NULL) 
-    {
-		printf("WPA: No SSID info found (msg 1 of 4)\n");
-		return;
-	}
+//	if (wpa_sm_get_network_ctx(sm) == NULL) 
+//    {
+//		printf("WPA: No SSID info found (msg 1 of 4)\n");
+//		return;
+//	}
 
-	wpa_sm_set_state(sm, WPA_4WAY_HANDSHAKE);
+//	wpa_sm_set_state(sm, WPA_4WAY_HANDSHAKE);
 	printf("WPA: RX message 1 of 4-Way Handshake from " MACSTR " (ver=%d)\n", MAC2STR(src_addr), ver);
 
 	os_memset(&ie, 0, sizeof(ie));
@@ -547,13 +549,11 @@ static void wpa_supplicant_process_1_of_4(struct wpa_sm *sm,
 	if (sm->proto == WPA_PROTO_RSN || sm->proto == WPA_PROTO_OSEN) 
     {
 		/* RSN: msg 1/4 should contain PMKID for the selected PMK */
-		wpa_hexdump(MSG_DEBUG, "RSN: msg 1/4 key data",
-			    key_data, key_data_len);
+		wpa_hexdump(MSG_ERROR, "RSN: msg 1/4 key data",key_data, key_data_len);
 		if (wpa_supplicant_parse_ies(key_data, key_data_len, &ie) < 0)
 			goto failed;
 		if (ie.pmkid) {
-			wpa_hexdump(MSG_DEBUG, "RSN: PMKID from "
-				    "Authenticator", ie.pmkid, PMKID_LEN);
+			wpa_hexdump(MSG_ERROR, "RSN: PMKID from Authenticator", ie.pmkid, PMKID_LEN);
 		}
 	}
 
@@ -566,16 +566,15 @@ static void wpa_supplicant_process_1_of_4(struct wpa_sm *sm,
 	}
 	if (res)
 		goto failed;
-
+    
 	if (sm->renew_snonce) 
     {
 		if (random_get_bytes(sm->snonce, WPA_NONCE_LEN)) {
-			wpa_msg(sm->ctx->msg_ctx, MSG_WARNING,
-				"WPA: Failed to get random data for SNonce");
+			printf("WPA: Failed to get random data for SNonce\n");
 			goto failed;
 		}
 		sm->renew_snonce = 0;
-		wpa_hexdump(MSG_DEBUG, "WPA: Renewed SNonce",
+		wpa_hexdump(MSG_ERROR, "WPA: Renewed SNonce",
 			    sm->snonce, WPA_NONCE_LEN);
 	}
 
@@ -583,7 +582,8 @@ static void wpa_supplicant_process_1_of_4(struct wpa_sm *sm,
 	 * been verified when processing message 3/4. */
 	ptk = &sm->tptk;
 	wpa_derive_ptk(sm, src_addr, key, ptk);
-	if (sm->pairwise_cipher == WPA_CIPHER_TKIP) {
+	if (sm->pairwise_cipher == WPA_CIPHER_TKIP)
+    {
 		u8 buf[8];
 		/* Supplicant: swap tx/rx Mic keys */
 		os_memcpy(buf, &ptk->tk[16], 8);

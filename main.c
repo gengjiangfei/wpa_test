@@ -406,6 +406,7 @@ static void driver_atheros_l2_read(void *ctx, const u8 *src_addr, const u8 *buf,
 {
     struct wpa_sm *wpa = ctx;
     printf("%s(%d):\n",__func__,__LINE__);
+
     wpa_sm_rx_eapol(wpa, src_addr, buf, len);
 }
 
@@ -500,6 +501,7 @@ struct l2_packet_data * l2_packet_init(
 	}
 
 	os_memcpy(l2->own_addr, ifr.ifr_hwaddr.sa_data, ETH_ALEN);
+    wpa_sm_set_own_addr(l2->rx_callback_ctx,l2->own_addr);
 
 //	eloop_register_read_sock(l2->fd, l2_packet_receive, l2, NULL);
    
@@ -635,7 +637,7 @@ int main(int argc,char* argv[])
 
 //  l2_packet_init(drv->iface, NULL, ETH_P_EAPOL,handle_read, drv, 1);
     struct wpa_sm *sm;
-    char ifname[30]="ath8";
+    char ifname[30]="wlan0";
     if(argv[1] != NULL)
     {
         memset(ifname,0,30);
