@@ -12,10 +12,14 @@
 /**
  * struct dl_list - Doubly-linked list
  */
-//struct dl_list {
-//	struct dl_list *next;
-//	struct dl_list *prev;
-//};
+#ifndef DL_LIST
+#define DL_LIST
+
+struct dl_list {
+	struct dl_list *next;
+	struct dl_list *prev;
+};
+#endif
 
 #define DL_LIST_HEAD_INIT(l) { &(l), &(l) }
 static inline void dl_list_init(struct dl_list *list)

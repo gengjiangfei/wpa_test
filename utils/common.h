@@ -10,7 +10,6 @@
 #define COMMON_H
 
 #include "os.h"
-#include "main.h"
 #include "define.h"
 
 #if defined(__linux__) || defined(__GLIBC__)

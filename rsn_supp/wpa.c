@@ -512,8 +512,17 @@ static int wpa_derive_ptk(struct wpa_sm *sm, const unsigned char *src_addr,
 	if (wpa_key_mgmt_ft(sm->key_mgmt))
 		return wpa_derive_ptk_ft(sm, src_addr, key, ptk);
 #endif /* CONFIG_IEEE80211R */
-printf("gjf==> %s(%d): pmk_len=%d,key_mgmt=%d,pairwise_cipher=%d\n",__func__,__LINE__,sm->pmk_len,sm->key_mgmt,sm->pairwise_cipher);
-wpa_hexdump(MSG_ERROR, "WPA: wpa_derive_ptk",sm->pmk,sm->pmk_len);
+printf("############gjf==> %s(%d)##############\n",__func__,__LINE__);
+printf("pmk_len=%ld,key_mgmt=%d,pairwise_cipher=%d\n",
+        sm->pmk_len,sm->key_mgmt,sm->pairwise_cipher);
+
+wpa_hexdump(MSG_ERROR, "WPA: PMK",sm->pmk,sm->pmk_len);
+wpa_hexdump(MSG_ERROR, "WPA: snonce",sm->snonce,WPA_NONCE_LEN);
+wpa_hexdump(MSG_ERROR, "WPA: key_nonce",key->key_nonce,WPA_NONCE_LEN);
+
+printf("%s(%d): own_addr="MACSTR"\n",__func__,__LINE__,MAC2STR(sm->own_addr));
+printf("%s(%d): bssid="MACSTR"\n",__func__,__LINE__,MAC2STR(sm->bssid));
+printf("#######################################\n");
 
     return wpa_pmk_to_ptk(sm->pmk, sm->pmk_len, "Pairwise key expansion",
 			      sm->own_addr, sm->bssid, sm->snonce,
@@ -597,25 +606,6 @@ static void wpa_supplicant_process_1_of_4(struct wpa_sm *sm,
 	kde = sm->assoc_wpa_ie;
 	kde_len = sm->assoc_wpa_ie_len;
 
-#ifdef CONFIG_P2P
-	if (sm->p2p) {
-		kde_buf = os_malloc(kde_len + 2 + RSN_SELECTOR_LEN + 1);
-		if (kde_buf) {
-			u8 *pos;
-			wpa_printf(MSG_DEBUG, "P2P: Add IP Address Request KDE "
-				   "into EAPOL-Key 2/4");
-			os_memcpy(kde_buf, kde, kde_len);
-			kde = kde_buf;
-			pos = kde + kde_len;
-			*pos++ = WLAN_EID_VENDOR_SPECIFIC;
-			*pos++ = RSN_SELECTOR_LEN + 1;
-			RSN_SELECTOR_PUT(pos, WFA_KEY_DATA_IP_ADDR_REQ);
-			pos += RSN_SELECTOR_LEN;
-			*pos++ = 0x01;
-			kde_len = pos - kde;
-		}
-	}
-#endif /* CONFIG_P2P */
 
 	if (wpa_supplicant_send_2_of_4(sm, sm->bssid, key, ver, sm->snonce,
 				       kde, kde_len, ptk) < 0)

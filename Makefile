@@ -14,6 +14,7 @@ CFLAGS = main.c \
 	$(DIR)/crypto/aes-internal-dec.c \
 	$(DIR)/crypto/aes-internal.c \
 	$(DIR)/crypto/sha1-prf.c \
+	$(DIR)/crypto/sha1-pbkdf2.c \
 	$(DIR)/utils/os_unix.c \
 	$(DIR)/utils/common.c \
 	$(DIR)/utils/wpa_debug.c \
