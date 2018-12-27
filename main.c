@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>           // close()
 #include <string.h>           // strcpy, memset(), and memcpy()
+#include <execinfo.h>
 #include <netdb.h>            // struct addrinfo
 #include "main.h"
 #include <sys/types.h>        // needed for socket(), uint8_t, uint16_t, uint32_t
@@ -405,9 +406,9 @@ struct wpa_ssid * ssid_init(void)
     apinfo->ssid_len = strlen(apinfo->ssid);
     apinfo->passphrase = "87654321";
     apinfo->key_mgmt = WPA_KEY_MGMT_PSK;
-    apinfo->pairwise_cipher = WPA_CIPHER_CCMP | WPA_CIPHER_TKIP;
-    apinfo->group_cipher = WPA_CIPHER_CCMP | WPA_CIPHER_TKIP;
-    apinfo->proto = WPA_PROTO_RSN | WPA_PROTO_WPA;
+    apinfo->pairwise_cipher = WPA_CIPHER_CCMP;// | WPA_CIPHER_TKIP;
+    apinfo->group_cipher = WPA_CIPHER_CCMP; //| WPA_CIPHER_TKIP;
+    apinfo->proto = WPA_PROTO_RSN;// | WPA_PROTO_WPA;
     memset(apinfo->psk,0,PMK_LEN);
     apinfo->psk_set = 0;
 
@@ -472,6 +473,11 @@ struct wpa_sm * sm_init(struct driver_atheros_data *drv_ather,struct wpa_ssid *a
 		return NULL;
 	}
 	return sm;
+}
+
+void sm_deinit(struct wpa_sm *sm)
+{
+    return ;
 }
 
 #if 0
@@ -1312,13 +1318,23 @@ struct wpa_ssid * wpa_config_read(const char *name, struct wpa_config *cfgp)
     }
 }
 #endif
+
+
+void set_rsn_ie(struct wpa_sm *sm)
+{
+    u8 wpa_ie[80];
+    size_t wpa_ie_len = sizeof(wpa_ie);
+    wpa_sm_set_assoc_wpa_ie_default(sm,wpa_ie,&wpa_ie_len);
+
+}
 int main(int argc,char* argv[])
 {
 
     struct wpa_sm *sm=NULL;
     struct wpa_ssid *ssid=NULL;
     struct driver_atheros_data *drv_ather = NULL;
-    
+
+    wpa_debug_level = MSG_EXCESSIVE;
     char ifname[30]="wlan0";
     if(argv[1] != NULL)
     {
@@ -1342,7 +1358,9 @@ int main(int argc,char* argv[])
     wpa_hexdump(MSG_ERROR, "WPA: Generate PMK",ssid->psk,PMK_LEN);
 
     sm = sm_init(drv_ather,ssid);
+    set_rsn_ie(sm);
 
+    wpa_hexdump(MSG_ERROR, "WPA: Generate RSN IE",sm->assoc_wpa_ie,sm->assoc_wpa_ie_len);
     l2_packet_init(ifname, NULL, ETH_P_PAE,driver_atheros_l2_read, sm, 0);
     return 0;
 }

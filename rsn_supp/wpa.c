@@ -60,10 +60,7 @@ int wpa_eapol_key_send(struct wpa_sm *sm, struct wpa_ptk *ptk,
 				"EAPOL-Key destination address");
 		} else {
 			dest = sm->bssid;
-			wpa_dbg(sm->ctx->msg_ctx, MSG_DEBUG,
-				"WPA: Use BSSID (" MACSTR
-				") as the destination for EAPOL-Key",
-				MAC2STR(dest));
+			printf("WPA: Use BSSID (" MACSTR") as the destination for EAPOL-Key",MAC2STR(dest));
 		}
 	}
 
@@ -80,10 +77,9 @@ int wpa_eapol_key_send(struct wpa_sm *sm, struct wpa_ptk *ptk,
 			goto out;
 		}
 		if (ptk)
-			wpa_hexdump_key(MSG_DEBUG, "WPA: KCK",
-					ptk->kck, ptk->kck_len);
-		wpa_hexdump(MSG_DEBUG, "WPA: Derived Key MIC",
-			    key_mic, mic_len);
+			wpa_hexdump_key(MSG_DEBUG, "WPA: KCK",ptk->kck, ptk->kck_len);
+        
+		wpa_hexdump(MSG_DEBUG, "WPA: Derived Key MIC",key_mic, mic_len);
 	} else {
 #ifdef CONFIG_FILS
 		/* AEAD cipher - Key MIC field not used */
@@ -477,11 +473,13 @@ int wpa_supplicant_send_2_of_4(struct wpa_sm *sm, const unsigned char *dst,
 	reply->type = (sm->proto == WPA_PROTO_RSN ||
 		       sm->proto == WPA_PROTO_OSEN) ?
 		EAPOL_KEY_TYPE_RSN : EAPOL_KEY_TYPE_WPA;
+    
 	key_info = ver | WPA_KEY_INFO_KEY_TYPE;
 	if (mic_len)
 		key_info |= WPA_KEY_INFO_MIC;
 	else
 		key_info |= WPA_KEY_INFO_ENCR_KEY_DATA;
+    
 	WPA_PUT_BE16(reply->key_info, key_info);
 	if (sm->proto == WPA_PROTO_RSN || sm->proto == WPA_PROTO_OSEN)
 		WPA_PUT_BE16(reply->key_length, 0);
@@ -500,8 +498,7 @@ int wpa_supplicant_send_2_of_4(struct wpa_sm *sm, const unsigned char *dst,
 	os_memcpy(reply->key_nonce, nonce, WPA_NONCE_LEN);
 
 	wpa_dbg(sm->ctx->msg_ctx, MSG_DEBUG, "WPA: Sending EAPOL-Key 2/4");
-	return wpa_eapol_key_send(sm, ptk, ver, dst, ETH_P_EAPOL, rbuf, rlen,
-				  key_mic);
+	return wpa_eapol_key_send(sm, ptk, ver, dst, ETH_P_EAPOL, rbuf, rlen,key_mic);
 }
 
 
@@ -2860,8 +2857,7 @@ int wpa_sm_set_assoc_wpa_ie_default(struct wpa_sm *sm, u8 *wpa_ie,
 		return -1;
 	*wpa_ie_len = res;
 
-	wpa_hexdump(MSG_DEBUG, "WPA: Set own WPA IE default",
-		    wpa_ie, *wpa_ie_len);
+	wpa_hexdump(MSG_ERROR, "WPA: Set own WPA IE default",wpa_ie, *wpa_ie_len);
 
 	if (sm->assoc_wpa_ie == NULL) {
 		/*
@@ -2876,7 +2872,7 @@ int wpa_sm_set_assoc_wpa_ie_default(struct wpa_sm *sm, u8 *wpa_ie,
 		os_memcpy(sm->assoc_wpa_ie, wpa_ie, *wpa_ie_len);
 		sm->assoc_wpa_ie_len = *wpa_ie_len;
 	} else {
-		wpa_hexdump(MSG_DEBUG,
+		wpa_hexdump(MSG_ERROR,
 			    "WPA: Leave previously set WPA IE default",
 			    sm->assoc_wpa_ie, sm->assoc_wpa_ie_len);
 	}
