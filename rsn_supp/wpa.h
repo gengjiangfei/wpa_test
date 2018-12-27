@@ -20,7 +20,7 @@ struct wpa_config_blob;
 struct hostapd_freq_params;
 
 struct wpa_sm_ctx {
-	void *ctx; /* pointer to arbitrary upper level context */
+	void *ctx; /* pointer to arbitrary upper level context */ // wpa_s即wpa_supplicant全局结构体
 	void *msg_ctx; /* upper level context for wpa_msg() calls */
 
 	void (*set_state)(void *ctx, enum wpa_states state);
