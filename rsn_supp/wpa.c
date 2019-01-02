@@ -1377,7 +1377,8 @@ printf("%s(%d): WPA: RX message 3 of 4-Way!\n",__func__,__LINE__);
 	return;
 
 failed:
-	wpa_sm_deauthenticate(sm, WLAN_REASON_UNSPECIFIED);
+	//wpa_sm_deauthenticate(sm, WLAN_REASON_UNSPECIFIED);
+	printf("############ wpa_sm_deauthenticate  ############\n");
 }
 
 

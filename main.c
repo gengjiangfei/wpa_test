@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>           // close()
 #include <string.h>           // strcpy, memset(), and memcpy()
-#include <execinfo.h>
+//#include <execinfo.h>
 #include <netdb.h>            // struct addrinfo
 #include "main.h"
 #include <sys/types.h>        // needed for socket(), uint8_t, uint16_t, uint32_t
@@ -12,7 +12,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <netpacket/packet.h>
-#include <net/if.h>
+//#include <net/if.h>
 #include <linux/filter.h>
 #include <linux/if_ether.h>
 #include <linux/wireless.h>
@@ -29,7 +29,6 @@
 #include "crypto/sha1.h"
 #include "crypto/sha1_i.h"
 #include "utils/includes.h"
-//#include "list.h"
 
 struct driver_atheros_data {
 	void *ctx;
@@ -116,6 +115,7 @@ struct wpa_ssid
 
 struct wpa_supplicant 
 {
+    char ifname[100];
     struct l2_packet_data *l2;
     struct l2_packet_data *l2_br;
 //    unsigned char own_addr[ETH_ALEN];
@@ -125,7 +125,40 @@ struct wpa_supplicant
     struct wpa_sm *wpa;
     struct eapol_sm *eapol;
     struct driver_atheros_data *drv_ather;
+    unsigned int keys_cleared;/* bitfield of key indexes that the driver is
+				    * known not to be configured with a key */
+    int mic_errors_seen; /* Michael MIC errors with the current PTK */
+    void *drv_priv; /* private data used by driver_ops */
+};
 
+
+/*
+ * WPA/RSN get/set key request.  Specify the key/cipher
+ * type and whether the key is to be used for sending and/or
+ * receiving.  The key index should be set only when working
+ * with global keys (use IEEE80211_KEYIX_NONE for ``no index'').
+ * Otherwise a unicast/pairwise key is specified by the bssid
+ * (on a station) or mac address (on an ap).  They key length
+ * must include any MIC key data; otherwise it should be no
+ more than IEEE80211_KEYBUF_SIZE.
+ */
+struct ieee80211req_key {
+	u_int8_t	ik_type;	/* key/cipher type */
+	u_int8_t	ik_pad;
+	u_int16_t	ik_keyix;	/* key index */
+	u_int8_t	ik_keylen;	/* key length in bytes */
+	u_int8_t	ik_flags;
+/* NB: IEEE80211_KEY_XMIT and IEEE80211_KEY_RECV defined elsewhere */
+#define	IEEE80211_KEY_DEFAULT	0x80	/* default xmit key */
+	u_int8_t	ik_macaddr[IEEE80211_ADDR_LEN];
+	u_int64_t	ik_keyrsc;	/* key receive sequence counter */
+	u_int64_t	ik_keytsc;	/* key transmit sequence counter */
+	u_int8_t	ik_keydata[IEEE80211_KEYBUF_SIZE+IEEE80211_MICBUF_SIZE];
+} __packed;
+
+struct ieee80211req_del_key {
+	u_int8_t	idk_keyix;	/* key index */
+	u_int8_t	idk_macaddr[IEEE80211_ADDR_LEN];
 };
 
 static void driver_atheros_l2_read(void *ctx, const u8 *src_addr, const u8 *buf,size_t len)
@@ -243,6 +276,360 @@ static inline int wpa_drv_get_bssid(struct wpa_supplicant *wpa_s, u8 *bssid)
 	return driver_atheros_get_bssid(wpa_s->drv_ather, bssid);
 }
 
+
+static char* athr_get_ioctl_name(int op)
+{
+	switch (op) {
+	case IEEE80211_IOCTL_SETPARAM:
+		return "SETPARAM";
+	case IEEE80211_IOCTL_GETPARAM:
+		return "GETPARAM";
+	case IEEE80211_IOCTL_SETKEY:
+		return "SETKEY";
+	case IEEE80211_IOCTL_SETWMMPARAMS:
+		return "SETWMMPARAMS";
+	case IEEE80211_IOCTL_DELKEY:
+		return "DELKEY";
+	case IEEE80211_IOCTL_GETWMMPARAMS:
+		return "GETWMMPARAMS";
+	case IEEE80211_IOCTL_SETMLME:
+		return "SETMLME";
+	case IEEE80211_IOCTL_GETCHANINFO:
+		return "GETCHANINFO";
+	case IEEE80211_IOCTL_SETOPTIE:
+		return "SETOPTIE";
+	case IEEE80211_IOCTL_GETOPTIE:
+		return "GETOPTIE";
+	case IEEE80211_IOCTL_ADDMAC:
+		return "ADDMAC";
+	case IEEE80211_IOCTL_DELMAC:
+		return "DELMAC";
+	case IEEE80211_IOCTL_GETCHANLIST:
+		return "GETCHANLIST";
+	case IEEE80211_IOCTL_SETCHANLIST:
+		return "SETCHANLIST";
+	case IEEE80211_IOCTL_KICKMAC:
+		return "KICKMAC";
+	case IEEE80211_IOCTL_CHANSWITCH:
+		return "CHANSWITCH";
+	case IEEE80211_IOCTL_GETMODE:
+		return "GETMODE";
+	case IEEE80211_IOCTL_SETMODE:
+		return "SETMODE";
+	case IEEE80211_IOCTL_GET_APPIEBUF:
+		return "GET_APPIEBUF";
+	case IEEE80211_IOCTL_SET_APPIEBUF:
+		return "SET_APPIEBUF";
+	case IEEE80211_IOCTL_SET_ACPARAMS:
+		return "SET_ACPARAMS";
+	case IEEE80211_IOCTL_FILTERFRAME:
+		return "FILTERFRAME";
+	case IEEE80211_IOCTL_SET_RTPARAMS:
+		return "SET_RTPARAMS";
+	case IEEE80211_IOCTL_SET_MEDENYENTRY:
+		return "SET_MEDENYENTRY";
+	case IEEE80211_IOCTL_GET_MACADDR:
+		return "GET_MACADDR";
+	case IEEE80211_IOCTL_SET_HBRPARAMS:
+		return "SET_HBRPARAMS";
+	case IEEE80211_IOCTL_SET_RXTIMEOUT:
+		return "SET_RXTIMEOUT";
+	default:
+		return "??";
+	}
+}
+
+static int set80211priv(struct driver_atheros_data *drv, int op, void *data, int len,int show_err)
+{
+	struct iwreq iwr;
+
+	os_memset(&iwr, 0, sizeof(iwr));
+	os_strlcpy(iwr.ifr_name, drv->ifname, IFNAMSIZ);
+	if (len <= IFNAMSIZ) 
+    {
+		/*
+		 * Argument data fits inline; put it there.
+		 */
+		if (op == IEEE80211_IOCTL_SET_APPIEBUF) 
+        {
+			wpa_printf(MSG_DEBUG, "%s: APPIEBUF", __func__);
+			iwr.u.data.pointer = data;
+			iwr.u.data.length = len;
+		} 
+        else
+		    os_memcpy(iwr.u.name, data, len);
+	} 
+    else 
+    {
+		/*
+		 * Argument data too big for inline transfer; setup a
+		 * parameter block instead; the kernel will transfer
+		 * the data for the driver.
+		 */
+		iwr.u.data.pointer = data;
+		iwr.u.data.length = len;
+	}
+
+	if (ioctl(drv->ioctl_sock, op, &iwr) < 0) 
+    {
+		if (show_err) 
+        {
+			wpa_printf(MSG_DEBUG, "%s: op=%x (%s) len=%d "
+				   "name=%s failed: %d (%s)",
+				   __func__, op,
+				   athr_get_ioctl_name(op),
+				   iwr.u.data.length, iwr.u.name,
+				   errno, strerror(errno));
+		}
+		return -1;
+	}
+	return 0;
+}
+
+static const char * athr_get_param_name(int op)
+{
+	switch (op) 
+    {
+    	case IEEE80211_IOC_UCASTCIPHERS:
+    		return "UCASTCIPHERS";
+    	case IEEE80211_IOC_UCASTCIPHER:
+    		return "UCASTCIPHER";
+    	case IEEE80211_IOC_MCASTCIPHER:
+    		return "MCASTCIPHER";
+    	default:
+    		return "??";
+	}
+}
+
+/*
+ * Function to call a sub-ioctl for setparam.
+ * data + 0 = mode = subioctl number
+ * data +4 = int parameter.
+ */
+static int set80211param_ifname(struct driver_atheros_data *drv, const char *ifname,
+		     int op, int arg, int show_err)
+{
+	struct iwreq iwr;
+
+	os_memset(&iwr, 0, sizeof(iwr));
+	os_strlcpy(iwr.ifr_name, ifname, IFNAMSIZ);
+	iwr.u.mode = op;
+	os_memcpy(iwr.u.name + sizeof(__u32), &arg, sizeof(arg));
+
+	wpa_printf(MSG_DEBUG, "%s: ifname=%s subioctl=%d (%s) arg=%d",
+		   __func__, ifname, op, athr_get_param_name(op), arg);
+	if (ioctl(drv->ioctl_sock, IEEE80211_IOCTL_SETPARAM, &iwr) < 0) {
+		if (show_err)
+			wpa_printf(MSG_ERROR, "athr: "
+				   "ioctl[IEEE80211_IOCTL_SETPARAM] failed: "
+				   "%s", strerror(errno));
+		return -1;
+	}
+	return 0;
+}
+             
+static int set80211param(struct driver_atheros_data *drv, int op, int arg, int show_err)
+{
+	return set80211param_ifname(drv, drv->ifname, op, arg, show_err);
+}
+
+int driver_atheros_alg_to_cipher_suite(int alg, int key_len)
+{
+        switch (alg) 
+        {
+            case WPA_ALG_CCMP:
+                    return WPA_CIPHER_CCMP;
+            case WPA_ALG_TKIP:
+                    return WPA_CIPHER_TKIP;
+            case WPA_ALG_WEP:
+        		if (key_len == 5)
+        			return WPA_CIPHER_WEP40;
+                else
+                     return WPA_CIPHER_WEP104;
+            case WPA_ALG_IGTK:
+                    return WPA_CIPHER_AES_128_CMAC;
+        }
+        return WPA_CIPHER_NONE;
+}
+
+static int driver_atheros_set_cipher(struct driver_atheros_data *drv, int type,
+				     unsigned int suite)
+{
+	int cipher;
+
+	wpa_printf(MSG_DEBUG, "athr: Set cipher type=%d suite=%d",
+		   type, suite);
+
+	switch (suite) {
+	case WPA_CIPHER_CCMP:
+		cipher = IEEE80211_CIPHER_AES_CCM;
+		break;
+	case WPA_CIPHER_TKIP:
+		cipher = IEEE80211_CIPHER_TKIP;
+		break;
+	case WPA_CIPHER_WEP104:
+	case WPA_CIPHER_WEP40:
+		if (type == IEEE80211_IOC_MCASTCIPHER)
+			cipher = IEEE80211_CIPHER_WEP;
+		else
+			return -1;
+		break;
+	case WPA_CIPHER_NONE:
+		cipher = IEEE80211_CIPHER_NONE;
+		break;
+	default:
+		return -1;
+	}
+
+	wpa_printf(MSG_DEBUG, "athr: cipher=%d", cipher);
+
+	return set80211param(drv, type, cipher, 1);
+}
+
+static int driver_atheros_del_key(struct driver_atheros_data *drv, int key_idx,
+		       const u8 *addr)
+{
+	struct ieee80211req_del_key wk;
+
+	wpa_printf(MSG_DEBUG, "%s: keyidx=%d", __FUNCTION__, key_idx);
+	os_memset(&wk, 0, sizeof(wk));
+	wk.idk_keyix = key_idx;
+	if (addr != NULL)
+		os_memcpy(wk.idk_macaddr, addr, IEEE80211_ADDR_LEN);
+
+	return set80211priv(drv, IEEE80211_IOCTL_DELKEY, &wk, sizeof(wk), 1);
+}
+
+int driver_atheros_set_key(const char *ifname, void *priv, enum wpa_alg alg,
+               const u8 *addr, int key_idx, int set_tx,
+               const u8 *seq, size_t seq_len,
+               const u8 *key, size_t key_len)
+{
+	struct driver_atheros_data *drv = priv;
+	struct ieee80211req_key k;
+	char *alg_name;
+	unsigned char cipher;
+	if (alg == WPA_ALG_NONE)
+		return driver_atheros_del_key(drv, key_idx, addr);
+
+    switch (alg) 
+    {
+        case WPA_ALG_WEP:
+    		alg_name = "WEP";
+    		cipher = IEEE80211_CIPHER_WEP;
+    		break;
+    	case WPA_ALG_TKIP:
+    		alg_name = "TKIP";
+    		cipher = IEEE80211_CIPHER_TKIP;
+    		break;
+    	case WPA_ALG_CCMP:
+    		alg_name = "CCMP";
+    		cipher = IEEE80211_CIPHER_AES_CCM;
+    		break;
+        default:
+    		wpa_printf(MSG_DEBUG, "%s: unknown/unsupported algorithm %d",__FUNCTION__, alg);
+    		return -1;
+    }
+
+	wpa_printf(MSG_DEBUG, "%s: ifname=%s, alg=%s key_idx=%d set_tx=%d ""seq_len=%lu key_len=%lu",
+	 __FUNCTION__, drv->ifname, alg_name, key_idx, set_tx,(unsigned long) seq_len, (unsigned long) key_len);
+	if (seq_len > sizeof(u_int64_t)) 
+    {
+		wpa_printf(MSG_DEBUG, "%s: seq_len %lu too big",
+			   __FUNCTION__, (unsigned long) seq_len);
+		return -2;
+	}
+	if (key_len > sizeof(k.ik_keydata)) 
+    {
+		wpa_printf(MSG_DEBUG, "%s: key length %lu too big",
+			   __FUNCTION__, (unsigned long) key_len);
+		return -3;
+	}
+    
+	os_memset(&k, 0, sizeof(k));
+	k.ik_flags = IEEE80211_KEY_RECV;
+	if (set_tx)
+		k.ik_flags |= IEEE80211_KEY_XMIT;
+
+	k.ik_type = cipher;
+
+#ifndef IEEE80211_KEY_GROUP
+#define IEEE80211_KEY_GROUP 0x04
+#endif
+
+	if (addr == NULL)
+		wpa_printf(MSG_DEBUG, "athr: addr is NULL");
+	else
+		wpa_printf(MSG_DEBUG, "athr: addr = " MACSTR, MAC2STR(addr));
+
+    if (addr && !is_broadcast_ether_addr(addr)) 
+    {
+		if (alg != WPA_ALG_WEP && key_idx && !set_tx) 
+        {
+			wpa_printf(MSG_DEBUG, "athr: RX GTK: set ""IEEE80211_PARAM_MCASTCIPHER=%d", alg);
+			driver_atheros_set_cipher(drv,IEEE80211_PARAM_MCASTCIPHER,driver_atheros_alg_to_cipher_suite(alg,key_len));
+			os_memcpy(k.ik_macaddr, addr, IEEE80211_ADDR_LEN);
+			wpa_printf(MSG_DEBUG, "athr: addr = " MACSTR,MAC2STR(k.ik_macaddr));
+			k.ik_flags |= IEEE80211_KEY_GROUP;
+			k.ik_keyix = key_idx;
+        }
+        else 
+        {
+			wpa_printf(MSG_DEBUG," set IEEE80211_PARAM_UCASTCIPHER=%d", alg);
+			driver_atheros_set_cipher(drv,IEEE80211_PARAM_UCASTCIPHER,driver_atheros_alg_to_cipher_suite(alg, key_len));
+			os_memcpy(k.ik_macaddr, addr, IEEE80211_ADDR_LEN);
+			wpa_printf(MSG_DEBUG, "addr = " MACSTR,MAC2STR(k.ik_macaddr));
+			k.ik_keyix = key_idx == 0 ? IEEE80211_KEYIX_NONE : key_idx;
+		}
+    }
+    else 
+    {
+		wpa_printf(MSG_DEBUG, "athr: TX GTK: set ""IEEE80211_PARAM_MCASTCIPHER=%d", alg);
+		driver_atheros_set_cipher(drv, IEEE80211_PARAM_MCASTCIPHER,driver_atheros_alg_to_cipher_suite(alg, key_len));
+		os_memset(k.ik_macaddr, 0xff, IEEE80211_ADDR_LEN);
+		wpa_printf(MSG_DEBUG, "athr: addr = " MACSTR,MAC2STR(k.ik_macaddr));
+		k.ik_flags |= IEEE80211_KEY_GROUP;
+		k.ik_keyix = key_idx;
+	}
+    
+	if (k.ik_keyix != IEEE80211_KEYIX_NONE && set_tx)
+		k.ik_flags |= IEEE80211_KEY_DEFAULT;
+    
+	k.ik_keylen = key_len;
+	if (seq) 
+    {
+#ifdef WORDS_BIGENDIAN
+		/*
+		 * k.ik_keyrsc is in host byte order (big endian), need to
+		 * swap it to match with the byte order used in WPA.
+		 */
+		int i;
+		u8 *keyrsc = (u8 *) &k.ik_keyrsc;
+		for (i = 0; i < seq_len; i++)
+			keyrsc[WPA_KEY_RSC_LEN - i - 1] = seq[i];
+#else /* WORDS_BIGENDIAN */
+		os_memcpy(&k.ik_keyrsc, seq, seq_len);
+#endif /* WORDS_BIGENDIAN */
+	}
+	os_memcpy(k.ik_keydata, key, key_len);
+
+	return set80211priv(drv, IEEE80211_IOCTL_SETKEY, &k, sizeof(k), 1);
+
+}
+static int wpa_supplicant_set_key(void *_wpa_s, enum wpa_alg alg,
+				  const u8 *addr, int key_idx, int set_tx,
+				  const u8 *seq, size_t seq_len,
+				  const u8 *key, size_t key_len)
+{
+	struct wpa_supplicant *wpa_s = _wpa_s;
+	if (alg == WPA_ALG_TKIP && key_idx == 0 && key_len == 32) {
+		/* Clear the MIC error counter when setting a new PTK. */
+		wpa_s->mic_errors_seen = 0;
+	}
+	return driver_atheros_set_key(wpa_s->ifname,wpa_s->drv_ather,
+					      alg, addr, key_idx, set_tx,
+					      seq, seq_len, key, key_len);
+}
 struct l2_packet_data * l2_packet_init(
 	const char *ifname, const u8 *own_addr, unsigned short protocol,
 	void (*rx_callback)(void *ctx, const u8 *src_addr,const u8 *buf, size_t len),
@@ -510,10 +897,10 @@ int wpa_supplicant_init_wpa(struct wpa_supplicant *wpa_s)
 
 	ctx->ctx = wpa_s;
 	ctx->msg_ctx = wpa_s;
-//	ctx->set_key = wpa_supplicant_set_key;
 	ctx->ether_send = wpa_ether_send;
 	ctx->alloc_eapol = wpa_alloc_eapol;
     ctx->get_bssid = wpa_drv_get_bssid;
+    ctx->set_key = wpa_supplicant_set_key;
     wpa_s->wpa = sm_init(ctx);
 	return 0;
 }

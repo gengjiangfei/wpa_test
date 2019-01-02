@@ -189,6 +189,7 @@ static inline unsigned int wpa_swap_32(unsigned int v)
 #define be_to_host64(n) (n)
 #define host_to_be64(n) (n)
 #ifndef WORDS_BIGENDIAN
+//жа
 #define WORDS_BIGENDIAN
 #endif
 #else

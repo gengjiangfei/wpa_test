@@ -31,193 +31,57 @@ struct dl_list {
 };
 #endif
 
-#if 0
-struct wpa_ssid {
-    int id;
-    u8 *ssid;//ssid - Service set identifier (network name)
-    size_t ssid_len;//ssid_len - Length of the SSID
-    char *passphrase;//psk - WPA pre-shared key (256 bits)
+#define SIOCIWFIRSTPRIV 0x8BE0
+#define IEEE80211_CIPHER_WEP          0
+#define IEEE80211_CIPHER_TKIP         1
+#define IEEE80211_CIPHER_AES_CCM      3
+#define IEEE80211_ADDR_LEN    6/* size of 802.11 address */
+#define IEEE80211_KEYBUF_SIZE    32
+#define IEEE80211_MICBUF_SIZE    (8+8) /* space for both tx+rx keys */
+#define IEEE80211_IOCTL_SET_APPIEBUF (SIOCIWFIRSTPRIV+20)
+#define IEEE80211_IOCTL_DELKEY (SIOCIWFIRSTPRIV+4)
+#define IEEE80211_PARAM_MCASTCIPHER 5/* multicast/default cipher */
+#define IEEE80211_PARAM_UCASTCIPHER 8
+#define IEEE80211_CIPHER_NONE 13
+#define IEEE80211_PARAM_UCASTCIPHERS    7
+#define IEEE80211_IOC_UCASTCIPHERS        IEEE80211_PARAM_UCASTCIPHERS    /* unicast cipher suites */
+#define IEEE80211_IOC_UCASTCIPHER         IEEE80211_PARAM_UCASTCIPHER    /* unicast cipher */
+#define IEEE80211_IOC_MCASTCIPHER         IEEE80211_PARAM_MCASTCIPHER    /* multicast/default cipher */
 
-    u8 psk[32];//psk - WPA pre-shared key (256 bits)
-    struct dl_list psk_list;//psk_list - Per-client PSKs (struct psk_list_entry)
-    int psk_set;//Whether PSK field is configured
-    
-    int pairwise_cipher;//pairwise_cipher - Bitfield of allowed pairwise ciphers, WPA_CIPHER_*
-    int group_cipher;//group_cipher - Bitfield of allowed group ciphers, WPA_CIPHER_*
-    int key_mgmt;//key_mgmt - Bitfield of allowed key management protocols WPA_KEY_MGMT_*
-    int proto;//proto - Bitfield of allowed protocols, WPA_PROTO_*
-    /**
-     * mac_addr - MAC address policy
-     *
-     * 0 = use permanent MAC address
-     * 1 = use random MAC address for each ESS connection
-     * 2 = like 1, but maintain OUI (with local admin bit set)
-     *
-     * Internally, special value -1 is used to indicate that the parameter
-     * was not specified in the configuration (i.e., default behavior is
-     * followed).
-     */
-    int mac_addr;
-    
-    /**
-     * proactive_key_caching - Enable proactive key caching
-     *
-     * This field can be used to enable proactive key caching which is also
-     * known as opportunistic PMKSA caching for WPA2. This is disabled (0)
-     * by default unless default value is changed with the global okc=1
-     * parameter. Enable by setting this to 1.
-     *
-     * Proactive key caching is used to make supplicant assume that the APs
-     * are using the same PMK and generate PMKSA cache entries without
-     * doing RSN pre-authentication. This requires support from the AP side
-     * and is normally used with wireless switches that co-locate the
-     * authenticator.
-     *
-     * Internally, special value -1 is used to indicate that the parameter
-     * was not specified in the configuration (i.e., default behavior is
-     * followed).
-     */
-    int proactive_key_caching;
-};
+#define	IEEE80211_IOCTL_SETPARAM	(SIOCIWFIRSTPRIV+0)
+#define	IEEE80211_IOCTL_GETPARAM	(SIOCIWFIRSTPRIV+1)
+#define	IEEE80211_IOCTL_SETKEY		(SIOCIWFIRSTPRIV+2)
+#define	IEEE80211_IOCTL_SETWMMPARAMS	(SIOCIWFIRSTPRIV+3)
+#define	IEEE80211_IOCTL_DELKEY		(SIOCIWFIRSTPRIV+4)
+#define	IEEE80211_IOCTL_GETWMMPARAMS	(SIOCIWFIRSTPRIV+5)
+#define	IEEE80211_IOCTL_SETMLME		(SIOCIWFIRSTPRIV+6)
+#define	IEEE80211_IOCTL_GETCHANINFO	(SIOCIWFIRSTPRIV+7)
+#define	IEEE80211_IOCTL_SETOPTIE	(SIOCIWFIRSTPRIV+8)
+#define	IEEE80211_IOCTL_GETOPTIE	(SIOCIWFIRSTPRIV+9)
+#define	IEEE80211_IOCTL_ADDMAC		(SIOCIWFIRSTPRIV+10)        /* Add ACL MAC Address */
+#define	IEEE80211_IOCTL_DELMAC		(SIOCIWFIRSTPRIV+12)        /* Del ACL MAC Address */
+#define	IEEE80211_IOCTL_GETCHANLIST	(SIOCIWFIRSTPRIV+13)
+#define	IEEE80211_IOCTL_SETCHANLIST	(SIOCIWFIRSTPRIV+14)
+#define IEEE80211_IOCTL_KICKMAC		(SIOCIWFIRSTPRIV+15)
+#define	IEEE80211_IOCTL_CHANSWITCH	(SIOCIWFIRSTPRIV+16)
+#define	IEEE80211_IOCTL_GETMODE		(SIOCIWFIRSTPRIV+17)
+#define	IEEE80211_IOCTL_SETMODE		(SIOCIWFIRSTPRIV+18)
+#define IEEE80211_IOCTL_GET_APPIEBUF	(SIOCIWFIRSTPRIV+19)
+#define IEEE80211_IOCTL_SET_APPIEBUF	(SIOCIWFIRSTPRIV+20)
+#define IEEE80211_IOCTL_SET_ACPARAMS	(SIOCIWFIRSTPRIV+21)
+#define IEEE80211_IOCTL_FILTERFRAME	(SIOCIWFIRSTPRIV+22)
+#define IEEE80211_IOCTL_SET_RTPARAMS	(SIOCIWFIRSTPRIV+23)
+#define IEEE80211_IOCTL_DBGREQ	        (SIOCIWFIRSTPRIV+24)
+#define IEEE80211_IOCTL_SEND_MGMT	(SIOCIWFIRSTPRIV+26)
+#define IEEE80211_IOCTL_SET_MEDENYENTRY (SIOCIWFIRSTPRIV+27)
+#define IEEE80211_IOCTL_CHN_WIDTHSWITCH (SIOCIWFIRSTPRIV+28)
+#define IEEE80211_IOCTL_GET_MACADDR	(SIOCIWFIRSTPRIV+29)        /* Get ACL List */
+#define IEEE80211_IOCTL_SET_HBRPARAMS	(SIOCIWFIRSTPRIV+30)
+#define IEEE80211_IOCTL_SET_RXTIMEOUT	(SIOCIWFIRSTPRIV+31)  
 
-/*
- * Structure for network configuration parsing. This data is used to implement
- * a generic parser for each network block variable. The table of configuration
- * variables is defined below in this file (ssid_fields[]).
- */
-struct parse_data {
-	/* Configuration variable name */
-	char *name;
-
-	/* Parser function for this variable. The parser functions return 0 or 1
-	 * to indicate success. Value 0 indicates that the parameter value may
-	 * have changed while value 1 means that the value did not change.
-	 * Error cases (failure to parse the string) are indicated by returning
-	 * -1. */
-	int (*parser)(const struct parse_data *data, struct wpa_ssid *ssid,
-		      int line, const char *value);
-
-#ifndef NO_CONFIG_WRITE
-	/* Writer function (i.e., to get the variable in text format from
-	 * internal presentation). */
-	char * (*writer)(const struct parse_data *data, struct wpa_ssid *ssid);
-#endif /* NO_CONFIG_WRITE */
-
-	/* Variable specific parameters for the parser. */
-	void *param1, *param2, *param3, *param4;
-
-	/* 0 = this variable can be included in debug output and ctrl_iface
-	 * 1 = this variable contains key/private data and it must not be
-	 *     included in debug output unless explicitly requested. In
-	 *     addition, this variable will not be readable through the
-	 *     ctrl_iface.
-	 */
-	int key_data;
-};
-
-int wpa_config_parse_str(const struct parse_data *data,struct wpa_ssid *ssid,int line, const char *value);
-char * wpa_config_write_str(const struct parse_data *data,struct wpa_ssid *ssid);
-int wpa_config_parse_bssid(const struct parse_data *data, struct wpa_ssid *ssid, int line,const char *value);
-int wpa_config_parse_psk(const struct parse_data *data,struct wpa_ssid *ssid, int line,const char *value);
-int wpa_config_parse_proto(const struct parse_data *data,struct wpa_ssid *ssid, int line,const char *value);
-int wpa_config_parse_key_mgmt(const struct parse_data *data,struct wpa_ssid *ssid, int line,const char *value);
-int wpa_config_parse_pairwise(const struct parse_data *data,struct wpa_ssid *ssid, int line,const char *value);
-int wpa_config_parse_group(const struct parse_data *data,struct wpa_ssid *ssid, int line,const char *value);
-
-
-
-#define OFFSET(v) ((void *) &((struct wpa_ssid *) 0)->v)
-
-#ifdef NO_CONFIG_WRITE
-#define _STR(f) #f, wpa_config_parse_str, OFFSET(f)
-#define _STRe(f) #f, wpa_config_parse_str, OFFSET(eap.f)
-#else /* NO_CONFIG_WRITE */
-#define _STR(f) #f, wpa_config_parse_str, wpa_config_write_str, OFFSET(f)
-#define _STRe(f) #f, wpa_config_parse_str, wpa_config_write_str, OFFSET(eap.f)
-#endif /* NO_CONFIG_WRITE */
-
-#define _STR_LEN(f) _STR(f), OFFSET(f ## _len)
-#define _STR_RANGE(f, min, max) _STR_LEN(f), (void *) (min), (void *) (max)
-#define STR_RANGE(f, min, max) _STR_RANGE(f, min, max), 0
-
-#ifdef NO_CONFIG_WRITE
-#define _FUNC(f) #f, wpa_config_parse_ ## f, NULL, NULL, NULL, NULL
-#else /* NO_CONFIG_WRITE */
-#define _FUNC(f) #f, wpa_config_parse_ ## f, wpa_config_write_ ## f, \
-	NULL, NULL, NULL, NULL
-#endif /* NO_CONFIG_WRITE */
-
-#ifdef NO_CONFIG_WRITE
-#define _INT(f) #f, wpa_config_parse_int, OFFSET(f), (void *) 0
-#define _INTe(f) #f, wpa_config_parse_int, OFFSET(eap.f), (void *) 0
-#else /* NO_CONFIG_WRITE */
-#define _INT(f) #f, wpa_config_parse_int, wpa_config_write_int, \
-	OFFSET(f), (void *) 0
-#define _INTe(f) #f, wpa_config_parse_int, wpa_config_write_int, \
-	OFFSET(eap.f), (void *) 0
-#endif /* NO_CONFIG_WRITE */
-
-#define FUNC(f) _FUNC(f), 0
-#define FUNC_KEY(f) _FUNC(f), 1
-
-#define INT(f) _INT(f), NULL, NULL, 0
-
-#define DEFAULT_PROTO (WPA_PROTO_WPA | WPA_PROTO_RSN)
-#define DEFAULT_KEY_MGMT (WPA_KEY_MGMT_PSK | WPA_KEY_MGMT_IEEE8021X)
-#define DEFAULT_PAIRWISE (WPA_CIPHER_CCMP | WPA_CIPHER_TKIP | \
-                          WPA_CIPHER_CCMP_256 | WPA_CIPHER_GCMP |\
-                          WPA_CIPHER_GCMP_256)
-#define DEFAULT_GROUP (WPA_CIPHER_CCMP | WPA_CIPHER_TKIP | \
-                       WPA_CIPHER_CCMP_256 | WPA_CIPHER_GCMP |\
-                       WPA_CIPHER_GCMP_256)
-
-#define NUM_SSID_FIELDS ARRAY_SIZE(ssid_fields)
-#endif
-
-#if 0
-
-typedef unsigned char  u8;
-typedef unsigned short u16;
-typedef unsigned int    u32;
-
-
-#ifndef _SIZE_T
-#define _SIZE_T
-typedef __kernel_size_t		size_t;
-#endif
-
-#ifndef BIT
-#define BIT(x) (1U << (x))
-#endif
-
-#ifndef os_malloc
-#define os_malloc(s) malloc((s))
-#endif
-
-#ifndef os_realloc
-#define os_realloc(p, s) realloc((p), (s))
-#endif
-
-#ifndef os_free
-#define os_free(p) free((p))
-#endif
-
-#ifndef os_memcpy
-#define os_memcpy(d, s, n) memcpy((d), (s), (n))
-#endif
-
-#ifndef os_memmove
-#define os_memmove(d, s, n) memmove((d), (s), (n))
-#endif
-
-#ifndef os_memset
-#define os_memset(s, c, n) memset(s, c, n)
-#endif
-
-#ifndef os_memcmp
-#define os_memcmp(s1, s2, n) memcmp((s1), (s2), (n))
-#endif
-#endif
+#define IEEE80211_KEY_XMIT      0x01    /* key used for xmit */
+#define IEEE80211_KEY_RECV      0x02    /* key used for recv */
+#define IEEE80211_KEYIX_NONE    ((unsigned short) -1)
 
 #endif
 
