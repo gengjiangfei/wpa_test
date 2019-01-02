@@ -1258,8 +1258,8 @@ static void wpa_supplicant_process_3_of_4(struct wpa_sm *sm,
 {
 	u16 key_info, keylen;
 	struct wpa_eapol_ie_parse ie;
-
-	wpa_sm_set_state(sm, WPA_4WAY_HANDSHAKE);
+printf("%s(%d): WPA: RX message 3 of 4-Way!\n",__func__,__LINE__);
+//	wpa_sm_set_state(sm, WPA_4WAY_HANDSHAKE);
 	wpa_dbg(sm->ctx->msg_ctx, MSG_DEBUG, "WPA: RX message 3 of 4-Way "
 		"Handshake from " MACSTR " (ver=%d)", MAC2STR(sm->bssid), ver);
 
@@ -1290,9 +1290,9 @@ static void wpa_supplicant_process_3_of_4(struct wpa_sm *sm,
 		goto failed;
 	}
 #endif /* CONFIG_IEEE80211W */
-
-	if (wpa_supplicant_validate_ie(sm, sm->bssid, &ie) < 0)
-		goto failed;
+/* 检查ap Beacon帧中的WPA、RSN信息元素是否和当前EAPOL中的WPA、RSN配置相同 */
+//	if (wpa_supplicant_validate_ie(sm, sm->bssid, &ie) < 0)
+//		goto failed;
 
 	if (os_memcmp(sm->anonce, key->key_nonce, WPA_NONCE_LEN) != 0) {
 		wpa_msg(sm->ctx->msg_ctx, MSG_WARNING,
@@ -1340,7 +1340,7 @@ static void wpa_supplicant_process_3_of_4(struct wpa_sm *sm,
 			MLME_SETPROTECTION_KEY_TYPE_PAIRWISE);
 		eapol_sm_notify_portValid(sm->eapol, TRUE);
 	}
-	wpa_sm_set_state(sm, WPA_GROUP_HANDSHAKE);
+//	wpa_sm_set_state(sm, WPA_GROUP_HANDSHAKE);
 
 	if (sm->group_cipher == WPA_CIPHER_GTK_NOT_USED) {
 		wpa_supplicant_key_neg_complete(sm, sm->bssid,
