@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <netpacket/packet.h>
 //#include <net/if.h>
+#include <linux/types.h>
 #include <linux/filter.h>
 #include <linux/if_ether.h>
 #include <linux/wireless.h>
@@ -131,6 +132,7 @@ struct wpa_supplicant
     void *drv_priv; /* private data used by driver_ops */
 };
 
+#if 0
 
 /*
  * WPA/RSN get/set key request.  Specify the key/cipher
@@ -142,6 +144,8 @@ struct wpa_supplicant
  * must include any MIC key data; otherwise it should be no
  more than IEEE80211_KEYBUF_SIZE.
  */
+#define __packed		__attribute__((packed))
+
 struct ieee80211req_key {
 	u_int8_t	ik_type;	/* key/cipher type */
 	u_int8_t	ik_pad;
@@ -149,18 +153,17 @@ struct ieee80211req_key {
 	u_int8_t	ik_keylen;	/* key length in bytes */
 	u_int8_t	ik_flags;
 /* NB: IEEE80211_KEY_XMIT and IEEE80211_KEY_RECV defined elsewhere */
-#define	IEEE80211_KEY_DEFAULT	0x80	/* default xmit key */
 	u_int8_t	ik_macaddr[IEEE80211_ADDR_LEN];
 	u_int64_t	ik_keyrsc;	/* key receive sequence counter */
 	u_int64_t	ik_keytsc;	/* key transmit sequence counter */
 	u_int8_t	ik_keydata[IEEE80211_KEYBUF_SIZE+IEEE80211_MICBUF_SIZE];
-} __packed;
+}__packed;
 
 struct ieee80211req_del_key {
 	u_int8_t	idk_keyix;	/* key index */
 	u_int8_t	idk_macaddr[IEEE80211_ADDR_LEN];
 };
-
+#endif
 static void driver_atheros_l2_read(void *ctx, const u8 *src_addr, const u8 *buf,size_t len)
 {
     struct wpa_sm *wpa = ctx;
@@ -343,13 +346,17 @@ static int set80211priv(struct driver_atheros_data *drv, int op, void *data, int
 {
 	struct iwreq iwr;
 
+printf("GJF: %s(%d): len=%d\n",__func__,__LINE__,len);
 	os_memset(&iwr, 0, sizeof(iwr));
 	os_strlcpy(iwr.ifr_name, drv->ifname, IFNAMSIZ);
+printf("GJF: %s(%d): IFNAMSIZ=%d\n",__func__,__LINE__,IFNAMSIZ);
+
 	if (len <= IFNAMSIZ) 
     {
 		/*
 		 * Argument data fits inline; put it there.
 		 */
+printf("GJF: %s(%d): op=%d, IEEE80211_IOCTL_SET_APPIEBUF=%d\n",__func__,__LINE__,op,IEEE80211_IOCTL_SET_APPIEBUF);
 		if (op == IEEE80211_IOCTL_SET_APPIEBUF) 
         {
 			wpa_printf(MSG_DEBUG, "%s: APPIEBUF", __func__);
@@ -366,12 +373,18 @@ static int set80211priv(struct driver_atheros_data *drv, int op, void *data, int
 		 * parameter block instead; the kernel will transfer
 		 * the data for the driver.
 		 */
+
 		iwr.u.data.pointer = data;
 		iwr.u.data.length = len;
+printf("GJF: %s(%d): len=%d\n",__func__,__LINE__,iwr.u.data.length);
+
 	}
+printf("GJF: %s(%d): ioctl\n",__func__,__LINE__);
+wpa_hexdump(MSG_DEBUG, "EAPOL: ioctl set key",iwr.u.data.pointer,iwr.u.data.length);
 
 	if (ioctl(drv->ioctl_sock, op, &iwr) < 0) 
     {
+    printf("GJF: %s(%d): show_err=%d\n",__func__,__LINE__,show_err);
 		if (show_err) 
         {
 			wpa_printf(MSG_DEBUG, "%s: op=%x (%s) len=%d "
@@ -383,6 +396,8 @@ static int set80211priv(struct driver_atheros_data *drv, int op, void *data, int
 		}
 		return -1;
 	}
+printf("GJF: %s(%d):\n",__func__,__LINE__);
+
 	return 0;
 }
 
@@ -612,7 +627,11 @@ int driver_atheros_set_key(const char *ifname, void *priv, enum wpa_alg alg,
 #endif /* WORDS_BIGENDIAN */
 	}
 	os_memcpy(k.ik_keydata, key, key_len);
-
+#define S(a) (sizeof(a))
+//printf("GJF: %s(%d): size_k=%d,key_len=%d,IEEE80211_KEYBUF_SIZE=%d,IEEE80211_MICBUF_SIZE=%d,IEEE80211_ADDR_LEN=%d\n",__func__,__LINE__,sizeof(k),key_len,IEEE80211_KEYBUF_SIZE,IEEE80211_MICBUF_SIZE,IEEE80211_ADDR_LEN);
+printf("GJF: %s(%d): %d,%d,%d,%d,%d,%d,%d\n",__func__,__LINE__,S(k.ik_flags),S(k.ik_keyix),
+        S(k.ik_keylen),S(k.ik_keyrsc),S(k.ik_keytsc),S(k.ik_pad),S(k.ik_type));
+printf("GJF: %s(%d): %d,%d,size_k=%d\n",__func__,__LINE__,S(k.ik_macaddr),S(k.ik_keydata),sizeof(k));
 	return set80211priv(drv, IEEE80211_IOCTL_SETKEY, &k, sizeof(k), 1);
 
 }
@@ -925,7 +944,7 @@ int main(int argc,char* argv[])
     struct timeval tv;
 
     wpa_debug_level = MSG_EXCESSIVE;
-    char ifname[30]="wlan0";
+    char ifname[30]="ath8";
     if(argv[1] != NULL)
     {
         memset(ifname,0,30);

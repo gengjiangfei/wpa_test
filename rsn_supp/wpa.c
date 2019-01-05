@@ -735,7 +735,7 @@ static int wpa_supplicant_install_ptk(struct wpa_sm *sm,
 //		eloop_register_timeout(sm->wpa_ptk_rekey, 0, wpa_sm_rekey_ptk,
 //				       sm, NULL);
 //	}
-
+printf("%s(%d): install ptk OK!\n",__func__,__LINE__);
 	return 0;
 }
 
@@ -1335,25 +1335,29 @@ printf("%s(%d): WPA: RX message 3 of 4-Way!\n",__func__,__LINE__);
 	}
 
 	if (key_info & WPA_KEY_INFO_SECURE) {
-		wpa_sm_mlme_setprotection(
-			sm, sm->bssid, MLME_SETPROTECTION_PROTECT_TYPE_RX,
-			MLME_SETPROTECTION_KEY_TYPE_PAIRWISE);
-		eapol_sm_notify_portValid(sm->eapol, TRUE);
+printf("*** %s(%d):Current Driver Unrealized!****\n",__func__,__LINE__);
+//		wpa_sm_mlme_setprotection(
+//			sm, sm->bssid, MLME_SETPROTECTION_PROTECT_TYPE_RX,
+//			MLME_SETPROTECTION_KEY_TYPE_PAIRWISE);
+//		eapol_sm_notify_portValid(sm->eapol, TRUE);
 	}
 //	wpa_sm_set_state(sm, WPA_GROUP_HANDSHAKE);
 
 	if (sm->group_cipher == WPA_CIPHER_GTK_NOT_USED) {
 		wpa_supplicant_key_neg_complete(sm, sm->bssid,
 						key_info & WPA_KEY_INFO_SECURE);
-	} else if (ie.gtk &&
-	    wpa_supplicant_pairwise_gtk(sm, key,
-					ie.gtk, ie.gtk_len, key_info) < 0) {
+
+	} 
+    else if (ie.gtk && wpa_supplicant_pairwise_gtk(sm, key,ie.gtk, ie.gtk_len, key_info) < 0)
+	{
 		wpa_msg(sm->ctx->msg_ctx, MSG_INFO,
 			"RSN: Failed to configure GTK");
 		goto failed;
 	}
 
-	if (ieee80211w_set_keys(sm, &ie) < 0) {
+	if (ieee80211w_set_keys(sm, &ie) < 0) 
+    {
+
 		wpa_msg(sm->ctx->msg_ctx, MSG_INFO,
 			"RSN: Failed to configure IGTK");
 		goto failed;
@@ -1372,6 +1376,7 @@ printf("%s(%d): WPA: RX message 3 of 4-Way!\n",__func__,__LINE__);
 		if (!sm->cur_pmksa)
 			sm->cur_pmksa = sa;
 	}
+printf("%s(%d):****\n",__func__,__LINE__);
 
 	sm->msg_3_of_4_ok = 1;
 	return;
@@ -2081,13 +2086,13 @@ int wpa_sm_rx_eapol(struct wpa_sm *sm, const u8 *src_addr,
 	}
 #endif /* CONFIG_PEERKEY */
 
-	if (!peerkey && sm->rx_replay_counter_set &&
-	    os_memcmp(key->replay_counter, sm->rx_replay_counter,
-		      WPA_REPLAY_COUNTER_LEN) <= 0) 
-	{
-		printf("WPA: EAPOL-Key Replay Counter did not increase - dropping packet\n");
-		goto out;
-	}
+//	if (!peerkey && sm->rx_replay_counter_set &&
+//	    os_memcmp(key->replay_counter, sm->rx_replay_counter,
+//		      WPA_REPLAY_COUNTER_LEN) <= 0) 
+//	{
+//		printf("WPA: EAPOL-Key Replay Counter did not increase - dropping packet\n");
+//		goto out;
+//	}
 
 	if (!(key_info & (WPA_KEY_INFO_ACK | WPA_KEY_INFO_SMK_MESSAGE))
 #ifdef CONFIG_PEERKEY

@@ -3,6 +3,11 @@
 
 #include "common.h"
 
+#define _BYTE_ORDER _BIG_ENDIAN
+#include "ieee80211_external.h"
+#undef WPA_OUI_TYPE
+#undef MBO_OUI_TYPE
+
 #ifndef MACSTR
 #define MACSTR      "%02x:%02x:%02x:%02x:%02x:%02x"
 #endif
@@ -31,6 +36,7 @@ struct dl_list {
 };
 #endif
 
+#if 0
 #define SIOCIWFIRSTPRIV 0x8BE0
 #define IEEE80211_CIPHER_WEP          0
 #define IEEE80211_CIPHER_TKIP         1
@@ -82,7 +88,8 @@ struct dl_list {
 #define IEEE80211_KEY_XMIT      0x01    /* key used for xmit */
 #define IEEE80211_KEY_RECV      0x02    /* key used for recv */
 #define IEEE80211_KEYIX_NONE    ((unsigned short) -1)
-
+#define	IEEE80211_KEY_DEFAULT	0x80	/* default xmit key */
+#endif
 #endif
 
 

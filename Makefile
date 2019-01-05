@@ -2,6 +2,7 @@
 DIR = `pwd`
 SUBDIRS = `ls`
 TARGET = handshake
+ATHEROSPATH = /root/workspace/UGW6.0/develop/cbb/wifi/QCA/driver/qca-wifi_v5.0.3
 
 CFLAGS = main.c \
 	$(DIR)/crypto/sha1.c \
@@ -23,9 +24,11 @@ CFLAGS = main.c \
 	$(DIR)/common/wpa_common.c
 
 CFLAGS += -I$(DIR) -I$(DIR)/utils  -I$(DIR)/crypto -I$(DIR)/common -I$(DIR)/l2_packet -I$(DIR)/rsn_supp -I$(DIR)/eap_common -I$(DIR)/eapol_supp
+CFLAGS += -I$(ATHEROSPATH)/include -I$(ATHEROSPATH)/lmac/ath_dev
+CFLAGS += -I$(ATHEROSPATH)/os/linux/include
 
-# CC = /projects/hnd/tools/linux/hndtools-mips-linux-uclibc-4.9.3/usr/bin/mips-ugw-linux-uclibc-gcc
-CC = /usr/bin/gcc
+CC = /projects/hnd/tools/linux/hndtools-mips-linux-uclibc-4.9.3/usr/bin/mips-ugw-linux-uclibc-gcc
+# CC = /usr/bin/gcc
 
 all:
 	@$(CC) -g $(CFLAGS) -o $(TARGET)
