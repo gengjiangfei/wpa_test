@@ -360,6 +360,7 @@ static void _wpa_hexdump(int level, const char *title, const u8 *buf,
 	} else {
 #endif /* CONFIG_DEBUG_FILE */
 	printf("%s - hexdump(len=%lu):", title, (unsigned long) len);
+    show = 1;//add by gjf 
 	if (buf == NULL) {
 		printf(" [NULL]");
 	} else if (show) {

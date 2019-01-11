@@ -573,7 +573,7 @@ static void wpa_supplicant_process_1_of_4(struct wpa_sm *sm,
 	if (res)
 		goto failed;
     
-	if (sm->renew_snonce) 
+	if (sm->renew_snonce)
     {
 		if (random_get_bytes(sm->snonce, WPA_NONCE_LEN)) {
 			printf("WPA: Failed to get random data for SNonce\n");
@@ -633,7 +633,7 @@ static void wpa_supplicant_key_neg_complete(struct wpa_sm *sm,
 		MACSTR " [PTK=%s GTK=%s]", MAC2STR(addr),
 		wpa_cipher_txt(sm->pairwise_cipher),
 		wpa_cipher_txt(sm->group_cipher));
-	wpa_sm_cancel_auth_timeout(sm);
+//	wpa_sm_cancel_auth_timeout(sm);
 	wpa_sm_set_state(sm, WPA_COMPLETED);
 
 	if (secure) {
@@ -884,13 +884,17 @@ static int wpa_supplicant_pairwise_gtk(struct wpa_sm *sm,
 	 * Reserved [bits 0-7]
 	 * GTK
 	 */
+printf("%s(%d):\n",__func__,__LINE__);
 
 	os_memset(&gd, 0, sizeof(gd));
 	wpa_hexdump_key(MSG_DEBUG, "RSN: received GTK in pairwise handshake",
 			gtk, gtk_len);
 
 	if (gtk_len < 2 || gtk_len - 2 > sizeof(gd.gtk))
-		return -1;
+	{
+	    printf("%s(%d):\n",__func__,__LINE__);
+	    return -1;
+    }
 
 	gd.keyidx = gtk[0] & 0x3;
 	gd.tx = wpa_supplicant_gtk_tx_bit_workaround(sm,
@@ -913,12 +917,17 @@ static int wpa_supplicant_pairwise_gtk(struct wpa_sm *sm,
 		wpa_dbg(sm->ctx->msg_ctx, MSG_DEBUG,
 			"RSN: Failed to install GTK");
 		os_memset(&gd, 0, sizeof(gd));
-		return -1;
+        
+          printf("%s(%d):\n",__func__,__LINE__);
+		  return -1;
 	}
 	os_memset(&gd, 0, sizeof(gd));
 
 	wpa_supplicant_key_neg_complete(sm, sm->bssid,
 					key_info & WPA_KEY_INFO_SECURE);
+    
+printf("%s(%d):\n",__func__,__LINE__);
+
 	return 0;
 }
 
@@ -1342,6 +1351,9 @@ printf("*** %s(%d):Current Driver Unrealized!****\n",__func__,__LINE__);
 //		eapol_sm_notify_portValid(sm->eapol, TRUE);
 	}
 //	wpa_sm_set_state(sm, WPA_GROUP_HANDSHAKE);
+if(ie.gtk == NULL)
+    printf("%s(%d): gtk is NULL \n",__func__,__LINE__);
+
 
 	if (sm->group_cipher == WPA_CIPHER_GTK_NOT_USED) {
 		wpa_supplicant_key_neg_complete(sm, sm->bssid,
@@ -1979,7 +1991,7 @@ int wpa_sm_rx_eapol(struct wpa_sm *sm, const u8 *src_addr,
 	}
 
 	key_data_len = WPA_GET_BE16(mic + mic_len);
-//	wpa_eapol_key_dump(sm, key, key_data_len, mic, mic_len);
+	wpa_eapol_key_dump(sm, key, key_data_len, mic, mic_len);
 
 	if (key_data_len > plen - keyhdrlen) 
     {
@@ -2130,7 +2142,7 @@ int wpa_sm_rx_eapol(struct wpa_sm *sm, const u8 *src_addr,
 
 	if ((sm->proto == WPA_PROTO_RSN || sm->proto == WPA_PROTO_OSEN) &&
 	    (key_info & WPA_KEY_INFO_ENCR_KEY_DATA) && mic_len) 
-	{
+	{//第三次握手时keydata需要先解密出来才能使用
 		if (wpa_supplicant_decrypt_key_data(sm, key, mic_len,
 						    ver, key_data,
 						    &key_data_len))

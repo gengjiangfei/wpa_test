@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>           // close()
 #include <string.h>           // strcpy, memset(), and memcpy()
+#include <assert.h>
 //#include <execinfo.h>
 #include <netdb.h>            // struct addrinfo
 #include "main.h"
@@ -112,6 +113,7 @@ struct wpa_ssid
     int group_cipher;//group_cipher - Bitfield of allowed group ciphers, WPA_CIPHER_*
     int key_mgmt;//key_mgmt - Bitfield of allowed key management protocols WPA_KEY_MGMT_*
     int proto;//proto - Bitfield of allowed protocols, WPA_PROTO_*
+    enum wpa_states wpa_state;
 };
 
 struct wpa_supplicant 
@@ -233,9 +235,7 @@ void * driver_atheros_init(const char *ifname)
     
 
 	drv = os_zalloc(sizeof(*drv));
-	if (drv == NULL)
-		return NULL;
-
+    assert(drv!=NULL);
 	os_strlcpy(drv->ifname, ifname, sizeof(drv->ifname));
 
 	drv->ioctl_sock = socket(PF_INET, SOCK_DGRAM, 0);
@@ -245,7 +245,7 @@ void * driver_atheros_init(const char *ifname)
 		goto err1;
 	}
 
-	if (linux_get_ifhwaddr(drv->ioctl_sock, drv->ifname, drv->own_addr) <0)
+	if (linux_get_ifhwaddr(drv->ioctl_sock, drv->ifname, drv->own_addr) <0)//获取接口MAC地址
 		goto err1;
 
 
@@ -726,8 +726,7 @@ struct wpa_ssid * ssid_init(void)
 	struct wpa_ssid *apinfo;
 
 	apinfo = os_zalloc(sizeof(*apinfo));
-	if (apinfo == NULL)
-		return NULL;
+    assert(apinfo != NULL);
 
     apinfo->id = 0;
     apinfo->ssid = "CMCC-abc888_wpa";
@@ -735,7 +734,7 @@ struct wpa_ssid * ssid_init(void)
     apinfo->passphrase = "87654321";
     apinfo->key_mgmt = WPA_KEY_MGMT_PSK;
     apinfo->pairwise_cipher = WPA_CIPHER_CCMP;// | WPA_CIPHER_TKIP;
-    apinfo->group_cipher = WPA_CIPHER_CCMP; //| WPA_CIPHER_TKIP;
+    apinfo->group_cipher = WPA_CIPHER_TKIP; //| WPA_CIPHER_TKIP;
     apinfo->proto = WPA_PROTO_RSN;// | WPA_PROTO_WPA;
     memset(apinfo->psk,0,PMK_LEN);
     apinfo->psk_set = 0;
@@ -845,7 +844,7 @@ static int wpa_ether_send(struct wpa_supplicant *wpa_s, const u8 *dest,
  */
 struct wpa_sm * sm_init(struct wpa_sm_ctx *ctx)
 {
-    ASSERT(ctx);
+    assert(ctx != NULL);
     
 	struct wpa_sm *sm=NULL;
     struct wpa_ssid *apinfo=NULL;
@@ -868,7 +867,7 @@ struct wpa_sm * sm_init(struct wpa_sm_ctx *ctx)
         sm->proto = WPA_PROTO_RSN; 
         sm->key_mgmt = WPA_KEY_MGMT_PSK;
         sm->pairwise_cipher = WPA_CIPHER_CCMP;
-        sm->group_cipher = WPA_CIPHER_CCMP;
+        sm->group_cipher = WPA_CIPHER_TKIP;
         memset(sm->rx_replay_counter,0,WPA_REPLAY_COUNTER_LEN);
     }
     else
@@ -948,13 +947,20 @@ int main(int argc,char* argv[])
     if(argv[1] != NULL)
     {
         memset(ifname,0,30);
-        strcpy(ifname,argv[1]);
+        if(sizeof(argv[1]) >= 30)
+            printf("fail: ifname too long\n");
+        else
+            strcpy(ifname,argv[1]);
     }
 
     printf("ifname = %s\n",ifname);
 
     wpa_s.drv_ather = driver_atheros_init(ifname);
-
+    if(wpa_s.drv_ather == NULL)
+    {
+        printf("%s(%d): driver atheros init failuer!\n",__func__,__LINE__);
+        return 0;
+    }
     wpa_s.current_ssid = ssid_init();
     
     printf("gjf==> %s(%d):\n ssid=%s\n ssid_len=%ld\n passphrase=%s\n "
@@ -991,7 +997,7 @@ int main(int argc,char* argv[])
                 }
              case 0:
                 {
-                    printf("select time out!\n");
+//                    printf("select time out!\n");
                     break; //再次轮询
                 }
              default: 
