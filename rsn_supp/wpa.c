@@ -80,69 +80,10 @@ int wpa_eapol_key_send(struct wpa_sm *sm, struct wpa_ptk *ptk,
 			wpa_hexdump_key(MSG_DEBUG, "WPA: KCK",ptk->kck, ptk->kck_len);
         
 		wpa_hexdump(MSG_DEBUG, "WPA: Derived Key MIC",key_mic, mic_len);
-	} else {
-#ifdef CONFIG_FILS
-		/* AEAD cipher - Key MIC field not used */
-		struct ieee802_1x_hdr *s_hdr, *hdr;
-		struct wpa_eapol_key *s_key, *key;
-		u8 *buf, *s_key_data, *key_data;
-		size_t buf_len = msg_len + AES_BLOCK_SIZE;
-		size_t key_data_len;
-		u16 eapol_len;
-		const u8 *aad[1];
-		size_t aad_len[1];
-
-		if (!ptk || !ptk->kek_len)
-			goto out;
-
-		key_data_len = msg_len - sizeof(struct ieee802_1x_hdr) -
-			sizeof(struct wpa_eapol_key) - 2;
-
-		buf = os_malloc(buf_len);
-		if (!buf)
-			goto out;
-
-		os_memcpy(buf, msg, msg_len);
-		hdr = (struct ieee802_1x_hdr *) buf;
-		key = (struct wpa_eapol_key *) (hdr + 1);
-		key_data = ((u8 *) (key + 1)) + 2;
-
-		/* Update EAPOL header to include AES-SIV overhead */
-		eapol_len = be_to_host16(hdr->length);
-		eapol_len += AES_BLOCK_SIZE;
-		hdr->length = host_to_be16(eapol_len);
-
-		/* Update Key Data Length field to include AES-SIV overhead */
-		WPA_PUT_BE16((u8 *) (key + 1), AES_BLOCK_SIZE + key_data_len);
-
-		s_hdr = (struct ieee802_1x_hdr *) msg;
-		s_key = (struct wpa_eapol_key *) (s_hdr + 1);
-		s_key_data = ((u8 *) (s_key + 1)) + 2;
-
-		wpa_hexdump_key(MSG_DEBUG, "WPA: Plaintext Key Data",
-				s_key_data, key_data_len);
-
-		wpa_hexdump_key(MSG_DEBUG, "WPA: KEK", ptk->kek, ptk->kek_len);
-		 /* AES-SIV AAD from EAPOL protocol version field (inclusive) to
-		  * to Key Data (exclusive). */
-		aad[0] = buf;
-		aad_len[0] = key_data - buf;
-		if (aes_siv_encrypt(ptk->kek, ptk->kek_len,
-				    s_key_data, key_data_len,
-				    1, aad, aad_len, key_data) < 0) {
-			os_free(buf);
-			goto out;
-		}
-
-		wpa_hexdump(MSG_DEBUG, "WPA: Encrypted Key Data from SIV",
-			    key_data, AES_BLOCK_SIZE + key_data_len);
-
-		os_free(msg);
-		msg = buf;
-		msg_len = buf_len;
-#else /* CONFIG_FILS */
+	}
+    else
+    {
 		goto out;
-#endif /* CONFIG_FILS */
 	}
 
 	wpa_hexdump(MSG_MSGDUMP, "WPA: TX EAPOL-Key", msg, msg_len);
@@ -428,38 +369,9 @@ int wpa_supplicant_send_2_of_4(struct wpa_sm *sm, const unsigned char *dst,
 		return -1;
 	}
 
-#ifdef CONFIG_IEEE80211R
-	if (wpa_key_mgmt_ft(sm->key_mgmt)) {
-		int res;
-
-		/*
-		 * Add PMKR1Name into RSN IE (PMKID-List) and add MDIE and
-		 * FTIE from (Re)Association Response.
-		 */
-		rsn_ie_buf = os_malloc(wpa_ie_len + 2 + 2 + PMKID_LEN +
-				       sm->assoc_resp_ies_len);
-		if (rsn_ie_buf == NULL)
-			return -1;
-		os_memcpy(rsn_ie_buf, wpa_ie, wpa_ie_len);
-		res = wpa_insert_pmkid(rsn_ie_buf, &wpa_ie_len,
-				       sm->pmk_r1_name);
-		if (res < 0) {
-			os_free(rsn_ie_buf);
-			return -1;
-		}
-
-		if (sm->assoc_resp_ies) {
-			os_memcpy(rsn_ie_buf + wpa_ie_len, sm->assoc_resp_ies,
-				  sm->assoc_resp_ies_len);
-			wpa_ie_len += sm->assoc_resp_ies_len;
-		}
-
-		wpa_ie = rsn_ie_buf;
-	}
-#endif /* CONFIG_IEEE80211R */
-
 	wpa_hexdump(MSG_DEBUG, "WPA: WPA IE for msg 2/4", wpa_ie, wpa_ie_len);
-
+    
+/*************STA构造eapol-key报文******************/
 	mic_len = wpa_mic_len(sm->key_mgmt);
 	hdrlen = sizeof(*reply) + mic_len + 2;
 	rbuf = wpa_sm_alloc_eapol(sm, IEEE802_1X_TYPE_EAPOL_KEY,
@@ -542,7 +454,7 @@ static void wpa_supplicant_process_1_of_4(struct wpa_sm *sm,
     printf("%s(%d):\n",__func__,__LINE__);
 
 //	if (wpa_sm_get_network_ctx(sm) == NULL) 
-//    {
+//  {
 //		printf("WPA: No SSID info found (msg 1 of 4)\n");
 //		return;
 //	}
@@ -556,15 +468,15 @@ static void wpa_supplicant_process_1_of_4(struct wpa_sm *sm,
     {
 		/* RSN: msg 1/4 should contain PMKID for the selected PMK */
 		wpa_hexdump(MSG_ERROR, "RSN: msg 1/4 key data",key_data, key_data_len);
-		if (wpa_supplicant_parse_ies(key_data, key_data_len, &ie) < 0)
+		if (wpa_supplicant_parse_ies(key_data, key_data_len, &ie) < 0)//ie获取RSN信息元素的位置
 			goto failed;
 		if (ie.pmkid) {
 			wpa_hexdump(MSG_ERROR, "RSN: PMKID from Authenticator", ie.pmkid, PMKID_LEN);
 		}
 	}
 
-	res = wpa_supplicant_get_pmk(sm, src_addr, ie.pmkid);
-	if (res == -2) 
+	res = wpa_supplicant_get_pmk(sm, src_addr, ie.pmkid);//获取PMK，PMK在程序启动时根据配置信息生成
+	if (res == -2)
     {
 		printf("RSN: Do not reply to "
 			"msg 1/4 - requesting full EAP authentication\n");
@@ -575,19 +487,19 @@ static void wpa_supplicant_process_1_of_4(struct wpa_sm *sm,
     
 	if (sm->renew_snonce)
     {
-		if (random_get_bytes(sm->snonce, WPA_NONCE_LEN)) {
+		if (random_get_bytes(sm->snonce, WPA_NONCE_LEN))//产生随机数Snonce
+        {
 			printf("WPA: Failed to get random data for SNonce\n");
 			goto failed;
 		}
 		sm->renew_snonce = 0;
-		wpa_hexdump(MSG_ERROR, "WPA: Renewed SNonce",
-			    sm->snonce, WPA_NONCE_LEN);
+		wpa_hexdump(MSG_ERROR, "WPA: Renewed SNonce",sm->snonce, WPA_NONCE_LEN);
 	}
 
 	/* Calculate PTK which will be stored as a temporary PTK until it has
 	 * been verified when processing message 3/4. */
 	ptk = &sm->tptk;
-	wpa_derive_ptk(sm, src_addr, key, ptk);
+	wpa_derive_ptk(sm, src_addr, key, ptk);//生成PTK，指导第三次握手成功后，PTK被安装到Driver中
 	if (sm->pairwise_cipher == WPA_CIPHER_TKIP)
     {
 		u8 buf[8];
@@ -614,7 +526,7 @@ static void wpa_supplicant_process_1_of_4(struct wpa_sm *sm,
 
 failed:
 	os_free(kde_buf);
-	wpa_sm_deauthenticate(sm, WLAN_REASON_UNSPECIFIED);
+	wpa_sm_deauthenticate(sm, WLAN_REASON_UNSPECIFIED);//握手失败，发送deauth信息
 }
 
 
@@ -1282,23 +1194,6 @@ printf("%s(%d): WPA: RX message 3 of 4-Way!\n",__func__,__LINE__);
 			"WPA: GTK IE in unencrypted key data");
 		goto failed;
 	}
-#ifdef CONFIG_IEEE80211W
-	if (ie.igtk && !(key_info & WPA_KEY_INFO_ENCR_KEY_DATA)) {
-		wpa_msg(sm->ctx->msg_ctx, MSG_WARNING,
-			"WPA: IGTK KDE in unencrypted key data");
-		goto failed;
-	}
-
-	if (ie.igtk &&
-	    wpa_cipher_valid_mgmt_group(sm->mgmt_group_cipher) &&
-	    ie.igtk_len != WPA_IGTK_KDE_PREFIX_LEN +
-	    (unsigned int) wpa_cipher_key_len(sm->mgmt_group_cipher)) {
-		wpa_msg(sm->ctx->msg_ctx, MSG_WARNING,
-			"WPA: Invalid IGTK KDE length %lu",
-			(unsigned long) ie.igtk_len);
-		goto failed;
-	}
-#endif /* CONFIG_IEEE80211W */
 /* 检查ap Beacon帧中的WPA、RSN信息元素是否和当前EAPOL中的WPA、RSN配置相同 */
 //	if (wpa_supplicant_validate_ie(sm, sm->bssid, &ie) < 0)
 //		goto failed;
@@ -1320,14 +1215,6 @@ printf("%s(%d): WPA: RX message 3 of 4-Way!\n",__func__,__LINE__);
 		goto failed;
 	}
 
-#ifdef CONFIG_P2P
-	if (ie.ip_addr_alloc) {
-		os_memcpy(sm->p2p_ip_addr, ie.ip_addr_alloc, 3 * 4);
-		wpa_hexdump(MSG_DEBUG, "P2P: IP address info",
-			    sm->p2p_ip_addr, sizeof(sm->p2p_ip_addr));
-	}
-#endif /* CONFIG_P2P */
-
 	if (wpa_supplicant_send_4_of_4(sm, sm->bssid, key, ver, key_info,
 				       &sm->ptk) < 0) {
 		goto failed;
@@ -1343,16 +1230,15 @@ printf("%s(%d): WPA: RX message 3 of 4-Way!\n",__func__,__LINE__);
 			goto failed;
 	}
 
-	if (key_info & WPA_KEY_INFO_SECURE) {
-printf("*** %s(%d):Current Driver Unrealized!****\n",__func__,__LINE__);
+//	if (key_info & WPA_KEY_INFO_SECURE) {
+//printf("*** %s(%d):Current Driver Unrealized!****\n",__func__,__LINE__);
 //		wpa_sm_mlme_setprotection(
 //			sm, sm->bssid, MLME_SETPROTECTION_PROTECT_TYPE_RX,
 //			MLME_SETPROTECTION_KEY_TYPE_PAIRWISE);
 //		eapol_sm_notify_portValid(sm->eapol, TRUE);
-	}
+//	}
+
 //	wpa_sm_set_state(sm, WPA_GROUP_HANDSHAKE);
-if(ie.gtk == NULL)
-    printf("%s(%d): gtk is NULL \n",__func__,__LINE__);
 
 
 	if (sm->group_cipher == WPA_CIPHER_GTK_NOT_USED) {
@@ -1367,27 +1253,19 @@ if(ie.gtk == NULL)
 		goto failed;
 	}
 
-	if (ieee80211w_set_keys(sm, &ie) < 0) 
-    {
-
-		wpa_msg(sm->ctx->msg_ctx, MSG_INFO,
-			"RSN: Failed to configure IGTK");
-		goto failed;
-	}
-
 	if (ie.gtk)
 		wpa_sm_set_rekey_offload(sm);
 
-	if (sm->proto == WPA_PROTO_RSN && wpa_key_mgmt_suite_b(sm->key_mgmt)) {
-		struct rsn_pmksa_cache_entry *sa;
+//	if (sm->proto == WPA_PROTO_RSN && wpa_key_mgmt_suite_b(sm->key_mgmt)) {
+//		struct rsn_pmksa_cache_entry *sa;
 
-		sa = pmksa_cache_add(sm->pmksa, sm->pmk, sm->pmk_len, NULL,
-				     sm->ptk.kck, sm->ptk.kck_len,
-				     sm->bssid, sm->own_addr,
-				     sm->network_ctx, sm->key_mgmt, NULL);
-		if (!sm->cur_pmksa)
-			sm->cur_pmksa = sa;
-	}
+//		sa = pmksa_cache_add(sm->pmksa, sm->pmk, sm->pmk_len, NULL,
+//				     sm->ptk.kck, sm->ptk.kck_len,
+//				     sm->bssid, sm->own_addr,
+//				     sm->network_ctx, sm->key_mgmt, NULL);
+//		if (!sm->cur_pmksa)
+//			sm->cur_pmksa = sa;
+//	}
 printf("%s(%d):****\n",__func__,__LINE__);
 
 	sm->msg_3_of_4_ok = 1;
@@ -1914,6 +1792,7 @@ static int wpa_supp_aead_decrypt(struct wpa_sm *sm, u8 *buf, size_t buf_len,
 int wpa_sm_rx_eapol(struct wpa_sm *sm, const u8 *src_addr,
 		    const u8 *buf, size_t len)
 {
+
 	size_t plen, data_len, key_data_len;
 	const struct ieee802_1x_hdr *hdr;
 	struct wpa_eapol_key *key;
@@ -2004,13 +1883,7 @@ int wpa_sm_rx_eapol(struct wpa_sm *sm, const u8 *src_addr,
 	key_info = WPA_GET_BE16(key->key_info);
 	ver = key_info & WPA_KEY_INFO_TYPE_MASK;
 	if (ver != WPA_KEY_INFO_TYPE_HMAC_MD5_RC4 &&
-#if defined(CONFIG_IEEE80211R) || defined(CONFIG_IEEE80211W)
-	    ver != WPA_KEY_INFO_TYPE_AES_128_CMAC &&
-#endif /* CONFIG_IEEE80211R || CONFIG_IEEE80211W */
-	    ver != WPA_KEY_INFO_TYPE_HMAC_SHA1_AES &&
-	    !wpa_key_mgmt_suite_b(sm->key_mgmt) &&
-	    !wpa_key_mgmt_fils(sm->key_mgmt) &&
-	    sm->key_mgmt != WPA_KEY_MGMT_OSEN) 
+	    ver != WPA_KEY_INFO_TYPE_HMAC_SHA1_AES) 
 	 {
 		printf("WPA: Unsupported EAPOL-Key descriptor version %d",ver);
 		goto out;
@@ -2061,56 +1934,15 @@ int wpa_sm_rx_eapol(struct wpa_sm *sm, const u8 *src_addr,
 		goto out;
 	}
 
-#ifdef CONFIG_PEERKEY
-	for (peerkey = sm->peerkey; peerkey; peerkey = peerkey->next) {
-		if (os_memcmp(peerkey->addr, src_addr, ETH_ALEN) == 0)
-			break;
-	}
 
-	if (!(key_info & WPA_KEY_INFO_SMK_MESSAGE) && peerkey) {
-		if (!peerkey->initiator && peerkey->replay_counter_set &&
-		    os_memcmp(key->replay_counter, peerkey->replay_counter,
-			      WPA_REPLAY_COUNTER_LEN) <= 0) {
-			wpa_msg(sm->ctx->msg_ctx, MSG_WARNING,
-				"RSN: EAPOL-Key Replay Counter did not "
-				"increase (STK) - dropping packet");
-			goto out;
-		} else if (peerkey->initiator) {
-			u8 _tmp[WPA_REPLAY_COUNTER_LEN];
-			os_memcpy(_tmp, key->replay_counter,
-				  WPA_REPLAY_COUNTER_LEN);
-			inc_byte_array(_tmp, WPA_REPLAY_COUNTER_LEN);
-			if (os_memcmp(_tmp, peerkey->replay_counter,
-				      WPA_REPLAY_COUNTER_LEN) != 0) {
-				wpa_dbg(sm->ctx->msg_ctx, MSG_DEBUG,
-					"RSN: EAPOL-Key Replay "
-					"Counter did not match (STK) - "
-					"dropping packet");
-				goto out;
-			}
-		}
-	}
-
-	if (peerkey && peerkey->initiator && (key_info & WPA_KEY_INFO_ACK)) {
-		wpa_msg(sm->ctx->msg_ctx, MSG_INFO,
-			"RSN: Ack bit in key_info from STK peer");
+	if (sm->rx_replay_counter_set &&
+	    os_memcmp(key->replay_counter, sm->rx_replay_counter,WPA_REPLAY_COUNTER_LEN) <= 0) 
+	{
+		printf("WPA: EAPOL-Key Replay Counter did not increase - dropping packet\n");
 		goto out;
 	}
-#endif /* CONFIG_PEERKEY */
 
-//	if (!peerkey && sm->rx_replay_counter_set &&
-//	    os_memcmp(key->replay_counter, sm->rx_replay_counter,
-//		      WPA_REPLAY_COUNTER_LEN) <= 0) 
-//	{
-//		printf("WPA: EAPOL-Key Replay Counter did not increase - dropping packet\n");
-//		goto out;
-//	}
-
-	if (!(key_info & (WPA_KEY_INFO_ACK | WPA_KEY_INFO_SMK_MESSAGE))
-#ifdef CONFIG_PEERKEY
-	    && (peerkey == NULL || !peerkey->initiator)
-#endif /* CONFIG_PEERKEY */
-		) 
+	if (!(key_info & (WPA_KEY_INFO_ACK | WPA_KEY_INFO_SMK_MESSAGE))) 
 	{
 		printf("WPA: No Ack bit in key_info\n");
 		goto out;
@@ -2126,20 +1958,8 @@ int wpa_sm_rx_eapol(struct wpa_sm *sm, const u8 *src_addr,
 	    wpa_supplicant_verify_eapol_key_mic(sm, key, ver, tmp, data_len))
 		goto out;
 
-#ifdef CONFIG_PEERKEY
-	if ((key_info & WPA_KEY_INFO_MIC) && peerkey &&
-	    peerkey_verify_eapol_key_mic(sm, peerkey, key, ver, tmp,
-					 data_len))
-		goto out;
-#endif /* CONFIG_PEERKEY */
-
-#ifdef CONFIG_FILS
-	if (!mic_len && (key_info & WPA_KEY_INFO_ENCR_KEY_DATA)) {
-		if (wpa_supp_aead_decrypt(sm, tmp, data_len, &key_data_len))
-			goto out;
-	}
-#endif /* CONFIG_FILS */
-
+/*************上半部分完成eapol-key帧的合法性检查*******************/
+/*************下班部分执行4次握手******************/
 	if ((sm->proto == WPA_PROTO_RSN || sm->proto == WPA_PROTO_OSEN) &&
 	    (key_info & WPA_KEY_INFO_ENCR_KEY_DATA) && mic_len) 
 	{//第三次握手时keydata需要先解密出来才能使用
@@ -2157,13 +1977,8 @@ int wpa_sm_rx_eapol(struct wpa_sm *sm, const u8 *src_addr,
 				"non-zero key index");
 			goto out;
 		}
-		if (peerkey) 
-        {
-			/* PeerKey 4-Way Handshake */
-			peerkey_rx_eapol_4way(sm, peerkey, key, key_info, ver,
-					      key_data, key_data_len);
-		} 
-        else if (key_info & (WPA_KEY_INFO_MIC |WPA_KEY_INFO_ENCR_KEY_DATA)) 
+        
+        if (key_info & (WPA_KEY_INFO_MIC |WPA_KEY_INFO_ENCR_KEY_DATA)) 
 		{
 			/* 3/4 4-Way Handshake */
 			wpa_supplicant_process_3_of_4(sm, key, ver, key_data,key_data_len);
@@ -2177,23 +1992,26 @@ int wpa_sm_rx_eapol(struct wpa_sm *sm, const u8 *src_addr,
     else if (key_info & WPA_KEY_INFO_SMK_MESSAGE) 
     {
 		/* PeerKey SMK Handshake */
-		peerkey_rx_eapol_smk(sm, src_addr, key, key_data, key_data_len,
-				     key_info, ver);
+        printf("WPA: Unsupported PeerKey SMK Handshake\n");
+//		peerkey_rx_eapol_smk(sm, src_addr, key, key_data, key_data_len,
+//				     key_info, ver);
 	} 
     else 
     {
-		if ((mic_len && (key_info & WPA_KEY_INFO_MIC)) ||
-		    (!mic_len && (key_info & WPA_KEY_INFO_ENCR_KEY_DATA))) 
-		{
-			/* 1/2 Group Key Handshake */
-            printf("%s(%d):  1/2 Group Key Handshake\n",__func__,__LINE__);
-			wpa_supplicant_process_1_of_2(sm, src_addr, key,
-						      key_data, key_data_len,ver);
-		} 
-        else
-        {
-			printf("WPA: EAPOL-Key (Group) without Mic/Encr bit - dropped \n");
-		}
+        printf("WPA: temporary Unsupported 1/2 Group Key Handshake\n");
+
+//		if ((mic_len && (key_info & WPA_KEY_INFO_MIC)) ||
+//		    (!mic_len && (key_info & WPA_KEY_INFO_ENCR_KEY_DATA))) 
+//		{
+//			/* 1/2 Group Key Handshake */
+//            printf("%s(%d):  1/2 Group Key Handshake\n",__func__,__LINE__);
+//			wpa_supplicant_process_1_of_2(sm, src_addr, key,
+//						      key_data, key_data_len,ver);
+//		} 
+//        else
+//        {
+//			printf("WPA: EAPOL-Key (Group) without Mic/Encr bit - dropped \n");
+//		}
 	}
 
 	ret = 1;
