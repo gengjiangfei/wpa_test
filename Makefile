@@ -34,15 +34,11 @@ all:
 	@$(CC) -g $(CFLAGS) -o $(TARGET)
 
 clean:
-	# for dir in $(SUBDIRS); do \
-	# if [ -d $$dir ] ; then \
-		# if [ -f $$dir/Makefile ] ; then \
-			# $(MAKE) -C $$dir clean; \
-		# fi \
-	# fi \
-	# done
 	@rm $(TARGET)
 
 test:
 	@echo DIR = $(DIR)
 	@echo CFLAGS = $(CFLAGS)
+
+
+

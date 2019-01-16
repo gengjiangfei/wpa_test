@@ -306,27 +306,6 @@ enum wpa_states {
 #define MLME_SETPROTECTION_KEY_TYPE_PAIRWISE 1
 
 
-/**
- * enum mfp_options - Management frame protection (IEEE 802.11w) options
- */
-enum mfp_options {
-	NO_MGMT_FRAME_PROTECTION = 0,
-	MGMT_FRAME_PROTECTION_OPTIONAL = 1,
-	MGMT_FRAME_PROTECTION_REQUIRED = 2,
-};
-#define MGMT_FRAME_PROTECTION_DEFAULT 3
-
-/**
- * enum hostapd_hw_mode - Hardware mode
- */
-enum hostapd_hw_mode {
-	HOSTAPD_MODE_IEEE80211B,
-	HOSTAPD_MODE_IEEE80211G,
-	HOSTAPD_MODE_IEEE80211A,
-	HOSTAPD_MODE_IEEE80211AD,
-	HOSTAPD_MODE_IEEE80211ANY,
-	NUM_HOSTAPD_MODES
-};
 
 /**
  * enum wpa_ctrl_req_type - Control interface request types
@@ -348,17 +327,8 @@ enum wpa_ctrl_req_type {
 /* Maximum number of EAP methods to store for EAP server user information */
 #define EAP_MAX_METHODS 8
 
-enum mesh_plink_state {
-	PLINK_IDLE = 1,
-	PLINK_OPN_SNT,
-	PLINK_OPN_RCVD,
-	PLINK_CNF_RCVD,
-	PLINK_ESTAB,
-	PLINK_HOLDING,
-	PLINK_BLOCKED, /* not defined in the IEEE 802.11 standard */
-};
-
-enum set_band {
+enum set_band
+{
 	WPA_SETBAND_AUTO,
 	WPA_SETBAND_5G,
 	WPA_SETBAND_2G

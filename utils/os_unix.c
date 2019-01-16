@@ -5,46 +5,12 @@
  * This software may be distributed under the terms of the BSD license.
  * See README for more details.
  */
-
 #include "includes.h"
-
 #include <time.h>
 #include <sys/wait.h>
-
-#ifdef ANDROID
-#include <sys/capability.h>
-#include <sys/prctl.h>
-#include <private/android_filesystem_config.h>
-#endif /* ANDROID */
-
-#ifdef __MACH__
-#include <CoreServices/CoreServices.h>
-#include <mach/mach.h>
-#include <mach/mach_time.h>
-#endif /* __MACH__ */
-
 #include "os.h"
 #include "common.h"
 
-#ifdef WPA_TRACE
-
-#include "wpa_debug.h"
-#include "trace.h"
-#include "list.h"
-
-static struct dl_list alloc_list = DL_LIST_HEAD_INIT(alloc_list);
-
-#define ALLOC_MAGIC 0xa84ef1b2
-#define FREED_MAGIC 0x67fd487a
-
-struct os_alloc_trace {
-	unsigned int magic;
-	struct dl_list list;
-	size_t len;
-	WPA_TRACE_INFO
-} __attribute__((aligned(16)));
-
-#endif /* WPA_TRACE */
 
 
 void os_sleep(os_time_t sec, os_time_t usec)
@@ -180,41 +146,7 @@ int os_gmtime(os_time_t t, struct os_tm *tm)
 }
 
 
-#ifdef __APPLE__
-#include <fcntl.h>
-static int os_daemon(int nochdir, int noclose)
-{
-	int devnull;
-
-	if (chdir("/") < 0)
-		return -1;
-
-	devnull = open("/dev/null", O_RDWR);
-	if (devnull < 0)
-		return -1;
-
-	if (dup2(devnull, STDIN_FILENO) < 0) {
-		close(devnull);
-		return -1;
-	}
-
-	if (dup2(devnull, STDOUT_FILENO) < 0) {
-		close(devnull);
-		return -1;
-	}
-
-	if (dup2(devnull, STDERR_FILENO) < 0) {
-		close(devnull);
-		return -1;
-	}
-
-	return 0;
-}
-#else /* __APPLE__ */
 #define os_daemon daemon
-#endif /* __APPLE__ */
-
-
 int os_daemonize(const char *pid_file)
 {
 #if defined(__uClinux__) || defined(__sun__)
@@ -320,33 +252,6 @@ char * os_rel2abs_path(const char *rel_path)
 
 int os_program_init(void)
 {
-#ifdef ANDROID
-	/*
-	 * We ignore errors here since errors are normal if we
-	 * are already running as non-root.
-	 */
-#ifdef ANDROID_SETGROUPS_OVERRIDE
-	gid_t groups[] = { ANDROID_SETGROUPS_OVERRIDE };
-#else /* ANDROID_SETGROUPS_OVERRIDE */
-	gid_t groups[] = { AID_INET, AID_WIFI, AID_KEYSTORE };
-#endif /* ANDROID_SETGROUPS_OVERRIDE */
-	struct __user_cap_header_struct header;
-	struct __user_cap_data_struct cap;
-
-	setgroups(ARRAY_SIZE(groups), groups);
-
-	prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0);
-
-	setgid(AID_WIFI);
-	setuid(AID_WIFI);
-
-	header.version = _LINUX_CAPABILITY_VERSION;
-	header.pid = 0;
-	cap.effective = cap.permitted =
-		(1 << CAP_NET_ADMIN) | (1 << CAP_NET_RAW);
-	cap.inheritable = 0;
-	capset(&header, &cap);
-#endif /* ANDROID */
 
 	return 0;
 }
@@ -354,26 +259,6 @@ int os_program_init(void)
 
 void os_program_deinit(void)
 {
-#ifdef WPA_TRACE
-	struct os_alloc_trace *a;
-	unsigned long total = 0;
-	dl_list_for_each(a, &alloc_list, struct os_alloc_trace, list) {
-		total += a->len;
-		if (a->magic != ALLOC_MAGIC) {
-			wpa_printf(MSG_INFO, "MEMLEAK[%p]: invalid magic 0x%x "
-				   "len %lu",
-				   a, a->magic, (unsigned long) a->len);
-			continue;
-		}
-		wpa_printf(MSG_INFO, "MEMLEAK[%p]: len %lu",
-			   a, (unsigned long) a->len);
-		wpa_trace_dump("memleak", a);
-	}
-	if (total)
-		wpa_printf(MSG_INFO, "MEMLEAK: total %lu bytes",
-			   (unsigned long) total);
-	wpa_trace_deinit();
-#endif /* WPA_TRACE */
 }
 
 
@@ -385,13 +270,7 @@ int os_setenv(const char *name, const char *value, int overwrite)
 
 int os_unsetenv(const char *name)
 {
-#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__APPLE__) || \
-    defined(__OpenBSD__)
-	unsetenv(name);
-	return 0;
-#else
 	return unsetenv(name);
-#endif
 }
 
 
@@ -458,29 +337,29 @@ int os_fdatasync(FILE *stream)
 }
 
 
-#ifndef WPA_TRACE
 void * os_zalloc(size_t size)
 {
 	return calloc(1, size);
 }
-#endif /* WPA_TRACE */
 
 
 size_t os_strlcpy(char *dest, const char *src, size_t siz)
 {
-//жа
 	const char *s = src;
 	size_t left = siz;
 
-	if (left) {
+	if (left)
+    {
 		/* Copy string up to the maximum size of the dest buffer */
-		while (--left != 0) {
+		while (--left != 0) 
+        {
 			if ((*dest++ = *s++) == '\0')
 				break;
 		}
 	}
 
-	if (left == 0) {
+	if (left == 0)
+    {
 		/* Not enough room for the string; force NUL-termination */
 		if (siz != 0)
 			*dest = '\0';
@@ -506,264 +385,6 @@ int os_memcmp_const(const void *a, const void *b, size_t len)
 }
 
 
-#ifdef WPA_TRACE
-
-#if defined(WPA_TRACE_BFD) && defined(CONFIG_TESTING_OPTIONS)
-char wpa_trace_fail_func[256] = { 0 };
-unsigned int wpa_trace_fail_after;
-
-static int testing_fail_alloc(void)
-{
-	const char *func[WPA_TRACE_LEN];
-	size_t i, res, len;
-	char *pos, *next;
-	int match;
-
-	if (!wpa_trace_fail_after)
-		return 0;
-
-	res = wpa_trace_calling_func(func, WPA_TRACE_LEN);
-	i = 0;
-	if (i < res && os_strcmp(func[i], __func__) == 0)
-		i++;
-	if (i < res && os_strcmp(func[i], "os_malloc") == 0)
-		i++;
-	if (i < res && os_strcmp(func[i], "os_zalloc") == 0)
-		i++;
-	if (i < res && os_strcmp(func[i], "os_calloc") == 0)
-		i++;
-	if (i < res && os_strcmp(func[i], "os_realloc") == 0)
-		i++;
-	if (i < res && os_strcmp(func[i], "os_realloc_array") == 0)
-		i++;
-	if (i < res && os_strcmp(func[i], "os_strdup") == 0)
-		i++;
-
-	pos = wpa_trace_fail_func;
-
-	match = 0;
-	while (i < res) {
-		int allow_skip = 1;
-		int maybe = 0;
-
-		if (*pos == '=') {
-			allow_skip = 0;
-			pos++;
-		} else if (*pos == '?') {
-			maybe = 1;
-			pos++;
-		}
-		next = os_strchr(pos, ';');
-		if (next)
-			len = next - pos;
-		else
-			len = os_strlen(pos);
-		if (os_memcmp(pos, func[i], len) != 0) {
-			if (maybe && next) {
-				pos = next + 1;
-				continue;
-			}
-			if (allow_skip) {
-				i++;
-				continue;
-			}
-			return 0;
-		}
-		if (!next) {
-			match = 1;
-			break;
-		}
-		pos = next + 1;
-		i++;
-	}
-	if (!match)
-		return 0;
-
-	wpa_trace_fail_after--;
-	if (wpa_trace_fail_after == 0) {
-		wpa_printf(MSG_INFO, "TESTING: fail allocation at %s",
-			   wpa_trace_fail_func);
-		for (i = 0; i < res; i++)
-			wpa_printf(MSG_INFO, "backtrace[%d] = %s",
-				   (int) i, func[i]);
-		return 1;
-	}
-
-	return 0;
-}
-
-
-char wpa_trace_test_fail_func[256] = { 0 };
-unsigned int wpa_trace_test_fail_after;
-
-int testing_test_fail(void)
-{
-	const char *func[WPA_TRACE_LEN];
-	size_t i, res, len;
-	char *pos, *next;
-	int match;
-
-	if (!wpa_trace_test_fail_after)
-		return 0;
-
-	res = wpa_trace_calling_func(func, WPA_TRACE_LEN);
-	i = 0;
-	if (i < res && os_strcmp(func[i], __func__) == 0)
-		i++;
-
-	pos = wpa_trace_test_fail_func;
-
-	match = 0;
-	while (i < res) {
-		int allow_skip = 1;
-		int maybe = 0;
-
-		if (*pos == '=') {
-			allow_skip = 0;
-			pos++;
-		} else if (*pos == '?') {
-			maybe = 1;
-			pos++;
-		}
-		next = os_strchr(pos, ';');
-		if (next)
-			len = next - pos;
-		else
-			len = os_strlen(pos);
-		if (os_memcmp(pos, func[i], len) != 0) {
-			if (maybe && next) {
-				pos = next + 1;
-				continue;
-			}
-			if (allow_skip) {
-				i++;
-				continue;
-			}
-			return 0;
-		}
-		if (!next) {
-			match = 1;
-			break;
-		}
-		pos = next + 1;
-		i++;
-	}
-	if (!match)
-		return 0;
-
-	wpa_trace_test_fail_after--;
-	if (wpa_trace_test_fail_after == 0) {
-		wpa_printf(MSG_INFO, "TESTING: fail at %s",
-			   wpa_trace_test_fail_func);
-		for (i = 0; i < res; i++)
-			wpa_printf(MSG_INFO, "backtrace[%d] = %s",
-				   (int) i, func[i]);
-		return 1;
-	}
-
-	return 0;
-}
-
-#else
-
-static inline int testing_fail_alloc(void)
-{
-	return 0;
-}
-#endif
-
-void * os_malloc(size_t size)
-{
-	struct os_alloc_trace *a;
-
-	if (testing_fail_alloc())
-		return NULL;
-
-	a = malloc(sizeof(*a) + size);
-	if (a == NULL)
-		return NULL;
-	a->magic = ALLOC_MAGIC;
-	dl_list_add(&alloc_list, &a->list);
-	a->len = size;
-	wpa_trace_record(a);
-	return a + 1;
-}
-
-
-void * os_realloc(void *ptr, size_t size)
-{
-	struct os_alloc_trace *a;
-	size_t copy_len;
-	void *n;
-
-	if (ptr == NULL)
-		return os_malloc(size);
-
-	a = (struct os_alloc_trace *) ptr - 1;
-	if (a->magic != ALLOC_MAGIC) {
-		wpa_printf(MSG_INFO, "REALLOC[%p]: invalid magic 0x%x%s",
-			   a, a->magic,
-			   a->magic == FREED_MAGIC ? " (already freed)" : "");
-		wpa_trace_show("Invalid os_realloc() call");
-		abort();
-	}
-	n = os_malloc(size);
-	if (n == NULL)
-		return NULL;
-	copy_len = a->len;
-	if (copy_len > size)
-		copy_len = size;
-	os_memcpy(n, a + 1, copy_len);
-	os_free(ptr);
-	return n;
-}
-
-
-void os_free(void *ptr)
-{
-	struct os_alloc_trace *a;
-
-	if (ptr == NULL)
-		return;
-	a = (struct os_alloc_trace *) ptr - 1;
-	if (a->magic != ALLOC_MAGIC) {
-		wpa_printf(MSG_INFO, "FREE[%p]: invalid magic 0x%x%s",
-			   a, a->magic,
-			   a->magic == FREED_MAGIC ? " (already freed)" : "");
-		wpa_trace_show("Invalid os_free() call");
-		abort();
-	}
-	dl_list_del(&a->list);
-	a->magic = FREED_MAGIC;
-
-	wpa_trace_check_ref(ptr);
-	free(a);
-}
-
-
-void * os_zalloc(size_t size)
-{
-	void *ptr = os_malloc(size);
-	if (ptr)
-		os_memset(ptr, 0, size);
-	return ptr;
-}
-
-
-char * os_strdup(const char *s)
-{
-	size_t len;
-	char *d;
-	len = os_strlen(s);
-	d = os_malloc(len + 1);
-	if (d == NULL)
-		return NULL;
-	os_memcpy(d, s, len);
-	d[len] = '\0';
-	return d;
-}
-
-#endif /* WPA_TRACE */
 
 
 int os_exec(const char *program, const char *arg, int wait_completion)
@@ -772,12 +393,14 @@ int os_exec(const char *program, const char *arg, int wait_completion)
 	int pid_status;
 
 	pid = fork();
-	if (pid < 0) {
+	if (pid < 0)
+    {
 		perror("fork");
 		return -1;
 	}
 
-	if (pid == 0) {
+	if (pid == 0)
+    {
 		/* run the external command in the child process */
 		const int MAX_ARG = 30;
 		char *_program, *_arg, *pos;
@@ -791,7 +414,8 @@ int os_exec(const char *program, const char *arg, int wait_completion)
 
 		i = 1;
 		pos = _arg;
-		while (i < MAX_ARG && pos && *pos) {
+		while (i < MAX_ARG && pos && *pos)
+        {
 			while (*pos == ' ')
 				pos++;
 			if (*pos == '\0')
@@ -811,7 +435,8 @@ int os_exec(const char *program, const char *arg, int wait_completion)
 		return -1;
 	}
 
-	if (wait_completion) {
+	if (wait_completion)
+    {
 		/* wait for the child process to complete in the parent */
 		waitpid(pid, &pid_status, 0);
 	}

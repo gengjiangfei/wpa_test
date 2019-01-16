@@ -43,12 +43,6 @@ static inline int wpa_debug_reopen_file(void)
 }
 
 #else /* CONFIG_NO_STDOUT_DEBUG */
-
-int wpa_debug_open_file(const char *path);
-int wpa_debug_reopen_file(void);
-void wpa_debug_close_file(void);
-void wpa_debug_setup_stdout(void);
-
 /**
  * wpa_debug_printf_timestamp - Print timestamp for debug output
  *
@@ -241,8 +235,7 @@ PRINTF_FORMAT(3, 4);
  * This function is like wpa_msg(), but it does not send the output as a global
  * event.
  */
-void wpa_msg_no_global(void *ctx, int level, const char *fmt, ...)
-PRINTF_FORMAT(3, 4);
+void wpa_msg_no_global(void *ctx, int level, const char *fmt, ...) PRINTF_FORMAT(3, 4);
 
 /**
  * wpa_msg_global_only - Conditional printf for ctrl_iface monitors
@@ -255,18 +248,16 @@ PRINTF_FORMAT(3, 4);
  * This function is like wpa_msg_global(), but it sends the output only as a
  * global event.
  */
-void wpa_msg_global_only(void *ctx, int level, const char *fmt, ...)
-PRINTF_FORMAT(3, 4);
+void wpa_msg_global_only(void *ctx, int level, const char *fmt, ...) PRINTF_FORMAT(3, 4);
 
-enum wpa_msg_type {
+enum wpa_msg_type 
+{
 	WPA_MSG_PER_INTERFACE,
 	WPA_MSG_GLOBAL,
 	WPA_MSG_NO_GLOBAL,
 	WPA_MSG_ONLY_GLOBAL,
 };
-
-typedef void (*wpa_msg_cb_func)(void *ctx, int level, enum wpa_msg_type type,
-				const char *txt, size_t len);
+typedef void (*wpa_msg_cb_func)(void *ctx, int level, enum wpa_msg_type type,const char *txt, size_t len);
 
 /**
  * wpa_msg_register_cb - Register callback function for wpa_msg() messages
@@ -278,77 +269,6 @@ typedef const char * (*wpa_msg_get_ifname_func)(void *ctx);
 void wpa_msg_register_ifname_cb(wpa_msg_get_ifname_func func);
 
 #endif /* CONFIG_NO_WPA_MSG */
-
-#ifdef CONFIG_NO_HOSTAPD_LOGGER
-#define hostapd_logger(args...) do { } while (0)
-#define hostapd_logger_register_cb(f) do { } while (0)
-#else /* CONFIG_NO_HOSTAPD_LOGGER */
-void hostapd_logger(void *ctx, const u8 *addr, unsigned int module, int level,
-		    const char *fmt, ...) PRINTF_FORMAT(5, 6);
-
-typedef void (*hostapd_logger_cb_func)(void *ctx, const u8 *addr,
-				       unsigned int module, int level,
-				       const char *txt, size_t len);
-
-/**
- * hostapd_logger_register_cb - Register callback function for hostapd_logger()
- * @func: Callback function (%NULL to unregister)
- */
-void hostapd_logger_register_cb(hostapd_logger_cb_func func);
-#endif /* CONFIG_NO_HOSTAPD_LOGGER */
-
-#define HOSTAPD_MODULE_IEEE80211	0x00000001
-#define HOSTAPD_MODULE_IEEE8021X	0x00000002
-#define HOSTAPD_MODULE_RADIUS		0x00000004
-#define HOSTAPD_MODULE_WPA		0x00000008
-#define HOSTAPD_MODULE_DRIVER		0x00000010
-#define HOSTAPD_MODULE_IAPP		0x00000020
-#define HOSTAPD_MODULE_MLME		0x00000040
-
-enum hostapd_logger_level {
-	HOSTAPD_LEVEL_DEBUG_VERBOSE = 0,
-	HOSTAPD_LEVEL_DEBUG = 1,
-	HOSTAPD_LEVEL_INFO = 2,
-	HOSTAPD_LEVEL_NOTICE = 3,
-	HOSTAPD_LEVEL_WARNING = 4
-};
-
-
-#ifdef CONFIG_DEBUG_SYSLOG
-
-void wpa_debug_open_syslog(void);
-void wpa_debug_close_syslog(void);
-
-#else /* CONFIG_DEBUG_SYSLOG */
-
-static inline void wpa_debug_open_syslog(void)
-{
-}
-
-static inline void wpa_debug_close_syslog(void)
-{
-}
-
-#endif /* CONFIG_DEBUG_SYSLOG */
-
-#ifdef CONFIG_DEBUG_LINUX_TRACING
-
-int wpa_debug_open_linux_tracing(void);
-void wpa_debug_close_linux_tracing(void);
-
-#else /* CONFIG_DEBUG_LINUX_TRACING */
-
-static inline int wpa_debug_open_linux_tracing(void)
-{
-	return 0;
-}
-
-static inline void wpa_debug_close_linux_tracing(void)
-{
-}
-
-#endif /* CONFIG_DEBUG_LINUX_TRACING */
-
 
 #ifdef EAPOL_TEST
 #define WPA_ASSERT(a)						       \
@@ -364,7 +284,7 @@ static inline void wpa_debug_close_linux_tracing(void)
 #define WPA_ASSERT(a) do { } while (0)
 #endif
 
-const char * debug_level_str(int level);
-int str_to_debug_level(const char *s);
+//const char * debug_level_str(int level);
+//int str_to_debug_level(const char *s);
 
 #endif /* WPA_DEBUG_H */

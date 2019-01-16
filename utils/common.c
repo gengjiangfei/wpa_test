@@ -12,6 +12,20 @@
 #include "common.h"
 
 
+void * __hide_aliasing_typecast(void *foo)
+{
+	return foo;
+}
+
+void bin_clear_free(void *bin, size_t len)
+{
+	if (bin) {
+		os_memset(bin, 0, len);
+		os_free(bin);
+	}
+}
+
+#if 0
 static int hex2num(char c)
 {
 	if (c >= '0' && c <= '9')
@@ -352,117 +366,6 @@ int wpa_snprintf_hex_uppercase(char *buf, size_t buf_size, const u8 *data,
 	return _wpa_snprintf_hex(buf, buf_size, data, len, 1);
 }
 
-
-#ifdef CONFIG_ANSI_C_EXTRA
-
-#ifdef _WIN32_WCE
-void perror(const char *s)
-{
-	wpa_printf(MSG_ERROR, "%s: GetLastError: %d",
-		   s, (int) GetLastError());
-}
-#endif /* _WIN32_WCE */
-
-
-int optind = 1;
-int optopt;
-char *optarg;
-
-int getopt(int argc, char *const argv[], const char *optstring)
-{
-	static int optchr = 1;
-	char *cp;
-
-	if (optchr == 1) {
-		if (optind >= argc) {
-			/* all arguments processed */
-			return EOF;
-		}
-
-		if (argv[optind][0] != '-' || argv[optind][1] == '\0') {
-			/* no option characters */
-			return EOF;
-		}
-	}
-
-	if (os_strcmp(argv[optind], "--") == 0) {
-		/* no more options */
-		optind++;
-		return EOF;
-	}
-
-	optopt = argv[optind][optchr];
-	cp = os_strchr(optstring, optopt);
-	if (cp == NULL || optopt == ':') {
-		if (argv[optind][++optchr] == '\0') {
-			optchr = 1;
-			optind++;
-		}
-		return '?';
-	}
-
-	if (cp[1] == ':') {
-		/* Argument required */
-		optchr = 1;
-		if (argv[optind][optchr + 1]) {
-			/* No space between option and argument */
-			optarg = &argv[optind++][optchr + 1];
-		} else if (++optind >= argc) {
-			/* option requires an argument */
-			return '?';
-		} else {
-			/* Argument in the next argv */
-			optarg = argv[optind++];
-		}
-	} else {
-		/* No argument */
-		if (argv[optind][++optchr] == '\0') {
-			optchr = 1;
-			optind++;
-		}
-		optarg = NULL;
-	}
-	return *cp;
-}
-#endif /* CONFIG_ANSI_C_EXTRA */
-
-
-#ifdef CONFIG_NATIVE_WINDOWS
-/**
- * wpa_unicode2ascii_inplace - Convert unicode string into ASCII
- * @str: Pointer to string to convert
- *
- * This function converts a unicode string to ASCII using the same
- * buffer for output. If UNICODE is not set, the buffer is not
- * modified.
- */
-void wpa_unicode2ascii_inplace(TCHAR *str)
-{
-#ifdef UNICODE
-	char *dst = (char *) str;
-	while (*str)
-		*dst++ = (char) *str++;
-	*dst = '\0';
-#endif /* UNICODE */
-}
-
-
-TCHAR * wpa_strdup_tchar(const char *str)
-{
-#ifdef UNICODE
-	TCHAR *buf;
-	buf = os_malloc((strlen(str) + 1) * sizeof(TCHAR));
-	if (buf == NULL)
-		return NULL;
-	wsprintf(buf, L"%S", str);
-	return buf;
-#else /* UNICODE */
-	return os_strdup(str);
-#endif /* UNICODE */
-}
-#endif /* CONFIG_NATIVE_WINDOWS */
-
-
 void printf_encode(char *txt, size_t maxlen, const u8 *data, size_t len)
 {
 	char *end = txt + maxlen;
@@ -622,10 +525,7 @@ const char * wpa_ssid_txt(const u8 *ssid, size_t ssid_len)
 }
 
 
-void * __hide_aliasing_typecast(void *foo)
-{
-	return foo;
-}
+
 
 
 char * wpa_config_parse_string(const char *value, size_t *len)
@@ -767,103 +667,6 @@ char * dup_binstr(const void *src, size_t len)
 	return res;
 }
 
-
-int freq_range_list_parse(struct wpa_freq_range_list *res, const char *value)
-{
-	struct wpa_freq_range *freq = NULL, *n;
-	unsigned int count = 0;
-	const char *pos, *pos2, *pos3;
-
-	/*
-	 * Comma separated list of frequency ranges.
-	 * For example: 2412-2432,2462,5000-6000
-	 */
-	pos = value;
-	while (pos && pos[0]) {
-		n = os_realloc_array(freq, count + 1,
-				     sizeof(struct wpa_freq_range));
-		if (n == NULL) {
-			os_free(freq);
-			return -1;
-		}
-		freq = n;
-		freq[count].min = atoi(pos);
-		pos2 = os_strchr(pos, '-');
-		pos3 = os_strchr(pos, ',');
-		if (pos2 && (!pos3 || pos2 < pos3)) {
-			pos2++;
-			freq[count].max = atoi(pos2);
-		} else
-			freq[count].max = freq[count].min;
-		pos = pos3;
-		if (pos)
-			pos++;
-		count++;
-	}
-
-	os_free(res->range);
-	res->range = freq;
-	res->num = count;
-
-	return 0;
-}
-
-
-int freq_range_list_includes(const struct wpa_freq_range_list *list,
-			     unsigned int freq)
-{
-	unsigned int i;
-
-	if (list == NULL)
-		return 0;
-
-	for (i = 0; i < list->num; i++) {
-		if (freq >= list->range[i].min && freq <= list->range[i].max)
-			return 1;
-	}
-
-	return 0;
-}
-
-
-char * freq_range_list_str(const struct wpa_freq_range_list *list)
-{
-	char *buf, *pos, *end;
-	size_t maxlen;
-	unsigned int i;
-	int res;
-
-	if (list->num == 0)
-		return NULL;
-
-	maxlen = list->num * 30;
-	buf = os_malloc(maxlen);
-	if (buf == NULL)
-		return NULL;
-	pos = buf;
-	end = buf + maxlen;
-
-	for (i = 0; i < list->num; i++) {
-		struct wpa_freq_range *range = &list->range[i];
-
-		if (range->min == range->max)
-			res = os_snprintf(pos, end - pos, "%s%u",
-					  i == 0 ? "" : ",", range->min);
-		else
-			res = os_snprintf(pos, end - pos, "%s%u-%u",
-					  i == 0 ? "" : ",",
-					  range->min, range->max);
-		if (os_snprintf_error(end - pos, res)) {
-			os_free(buf);
-			return NULL;
-		}
-		pos += res;
-	}
-
-	return buf;
-}
-
-
 int int_array_len(const int *a)
 {
 	int i;
@@ -966,13 +769,7 @@ void str_clear_free(char *str)
 }
 
 
-void bin_clear_free(void *bin, size_t len)
-{
-	if (bin) {
-		os_memset(bin, 0, len);
-		os_free(bin);
-	}
-}
+
 
 
 int random_mac_addr(u8 *addr)
@@ -1200,3 +997,4 @@ int str_starts(const char *str, const char *start)
 {
 	return os_strncmp(str, start, os_strlen(start)) == 0;
 }
+#endif

@@ -270,23 +270,6 @@ struct eapol_ctx {
 	 */
 	void (*status_cb)(void *ctx, const char *status,
 			  const char *parameter);
-
-#ifdef CONFIG_EAP_PROXY
-	/**
-	 * eap_proxy_cb - Callback signifying any updates from eap_proxy
-	 * @ctx: eapol_ctx from eap_peer_sm_init() call
-	 */
-	void (*eap_proxy_cb)(void *ctx);
-
-	/**
-	 * eap_proxy_notify_sim_status - Notification of SIM status change
-	 * @ctx: eapol_ctx from eap_peer_sm_init() call
-	 * @status: One of enum value from sim_state
-	 */
-	void (*eap_proxy_notify_sim_status)(void *ctx,
-					    enum eap_proxy_sim_state sim_state);
-#endif /* CONFIG_EAP_PROXY */
-
 	/**
 	 * set_anon_id - Set or add anonymous identity
 	 * @ctx: eapol_ctx from eap_peer_sm_init() call
@@ -300,47 +283,7 @@ struct eapol_ctx {
 struct eap_peer_config;
 struct ext_password_data;
 
-#ifdef IEEE8021X_EAPOL
-struct eapol_sm *eapol_sm_init(struct eapol_ctx *ctx);
-void eapol_sm_deinit(struct eapol_sm *sm);
-void eapol_sm_step(struct eapol_sm *sm);
-int eapol_sm_get_status(struct eapol_sm *sm, char *buf, size_t buflen,
-			int verbose);
-int eapol_sm_get_mib(struct eapol_sm *sm, char *buf, size_t buflen);
-void eapol_sm_configure(struct eapol_sm *sm, int heldPeriod, int authPeriod,
-			int startPeriod, int maxStart);
-int eapol_sm_rx_eapol(struct eapol_sm *sm, const u8 *src, const u8 *buf,
-		      size_t len);
-void eapol_sm_notify_tx_eapol_key(struct eapol_sm *sm);
-void eapol_sm_notify_portEnabled(struct eapol_sm *sm, Boolean enabled);
-void eapol_sm_notify_portValid(struct eapol_sm *sm, Boolean valid);
-void eapol_sm_notify_eap_success(struct eapol_sm *sm, Boolean success);
-void eapol_sm_notify_eap_fail(struct eapol_sm *sm, Boolean fail);
-void eapol_sm_notify_config(struct eapol_sm *sm,
-			    struct eap_peer_config *config,
-			    const struct eapol_config *conf);
-int eapol_sm_get_key(struct eapol_sm *sm, u8 *key, size_t len);
-const u8 * eapol_sm_get_session_id(struct eapol_sm *sm, size_t *len);
-void eapol_sm_notify_logoff(struct eapol_sm *sm, Boolean logoff);
-void eapol_sm_notify_cached(struct eapol_sm *sm);
-void eapol_sm_notify_pmkid_attempt(struct eapol_sm *sm);
-void eapol_sm_register_scard_ctx(struct eapol_sm *sm, void *ctx);
-void eapol_sm_notify_portControl(struct eapol_sm *sm, PortControl portControl);
-void eapol_sm_notify_ctrl_attached(struct eapol_sm *sm);
-void eapol_sm_notify_ctrl_response(struct eapol_sm *sm);
-void eapol_sm_request_reauth(struct eapol_sm *sm);
-void eapol_sm_notify_lower_layer_success(struct eapol_sm *sm, int in_eapol_sm);
-void eapol_sm_invalidate_cached_session(struct eapol_sm *sm);
-const char * eapol_sm_get_method_name(struct eapol_sm *sm);
-void eapol_sm_set_ext_pw_ctx(struct eapol_sm *sm,
-			     struct ext_password_data *ext);
-int eapol_sm_failed(struct eapol_sm *sm);
-void eapol_sm_erp_flush(struct eapol_sm *sm);
-struct wpabuf * eapol_sm_build_erp_reauth_start(struct eapol_sm *sm);
-void eapol_sm_process_erp_finish(struct eapol_sm *sm, const u8 *buf,
-				 size_t len);
-int eapol_sm_get_eap_proxy_imsi(struct eapol_sm *sm, char *imsi, size_t *len);
-#else /* IEEE8021X_EAPOL */
+////////////////////////////////////////////////////
 static inline struct eapol_sm *eapol_sm_init(struct eapol_ctx *ctx)
 {
 	free(ctx);
@@ -458,6 +401,6 @@ static inline void eapol_sm_process_erp_finish(struct eapol_sm *sm,
 					       const u8 *buf, size_t len)
 {
 }
-#endif /* IEEE8021X_EAPOL */
+/////////////////////////////////////////////////////////////
 
 #endif /* EAPOL_SUPP_SM_H */
