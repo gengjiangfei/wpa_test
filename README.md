@@ -7,7 +7,7 @@ wpa 辅助命令，完成前期的auth、assoc，和deauth功能
 操作步骤：
  一、连接AP
 	1、handshake ath8 &
-	2、wpa -i ath8 auth
+	2、wpa -i ath8 -o auth
 	
 二、断开AP
-    wpa -i ath8 deauth
+    wpa -i ath8 -o deauth
