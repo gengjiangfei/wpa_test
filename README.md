@@ -11,3 +11,16 @@ wpa 辅助命令，完成前期的auth、assoc，和deauth功能
 	
 二、断开AP
     wpa -i ath8 -o deauth
+	
+三、配置信息格式
+	配置文件：/var/test.conf
+			{
+				scan_ssid=1
+				ssid="CMCC-abc888_wpa"
+				psk="87654321"
+				key_mgmt=WPA-PSK
+				proto=RSN
+				pairwise=CCMP
+				group=TKIP
+			}
+			

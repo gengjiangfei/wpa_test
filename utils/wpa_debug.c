@@ -147,7 +147,7 @@ void wpa_hexdump_ascii(int level, const char *title, const void *buf,
 void wpa_hexdump_ascii_key(int level, const char *title, const void *buf,
 			   size_t len)
 {
-	_wpa_hexdump_ascii(level, title, buf, len, wpa_debug_show_keys);
+	_wpa_hexdump_ascii(level, title, buf, len, 1);
 }
 
 static wpa_msg_cb_func wpa_msg_cb = NULL;

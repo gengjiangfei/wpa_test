@@ -755,22 +755,549 @@ struct l2_packet_data * l2_packet_init(
 
 }
 
+static int newline_terminated(const char *buf, size_t buflen)
+{
+	size_t len = os_strlen(buf);
+	if (len == 0)
+		return 0;
+	if (len == buflen - 1 && buf[buflen - 1] != '\r' &&
+	    buf[len - 1] != '\n')
+		return 0;
+	return 1;
+}
+static void skip_line_end(FILE *stream)
+{
+	char buf[100];
+	while (fgets(buf, sizeof(buf), stream))
+    {
+		buf[sizeof(buf) - 1] = '\0';
+		if (newline_terminated(buf, sizeof(buf)))
+			return;
+	}
+}
+/**
+ * wpa_config_get_line - Read the next configuration file line
+ * @s: Buffer for the line
+ * @size: The buffer length
+ * @stream: File stream to read from
+ * @line: Pointer to a variable storing the file line number
+ * @_pos: Buffer for the pointer to the beginning of data on the text line or
+ * %NULL if not needed (returned value used instead)
+ * Returns: Pointer to the beginning of data on the text line or %NULL if no
+ * more text lines are available.
+ *
+ * This function reads the next non-empty line from the configuration file and
+ * removes comments. The returned string is guaranteed to be null-terminated.
+ */
+static char * wpa_config_get_line(char *s, int size, FILE *stream, int *line,
+				  char **_pos)
+{
+	char *pos, *end, *sstart;
+
+	while (fgets(s, size, stream)) {
+		(*line)++;
+		s[size - 1] = '\0';
+		if (!newline_terminated(s, size)) {
+			/*
+			 * The line was truncated - skip rest of it to avoid
+			 * confusing error messages.
+			 */
+			wpa_printf(MSG_INFO, "Long line in configuration file "
+				   "truncated");
+			skip_line_end(stream);
+		}
+		pos = s;
+
+		/* Skip white space from the beginning of line. */
+		while (*pos == ' ' || *pos == '\t' || *pos == '\r')
+			pos++;
+
+		/* Skip comment lines and empty lines */
+		if (*pos == '#' || *pos == '\n' || *pos == '\0')
+			continue;
+
+		/*
+		 * Remove # comments unless they are within a double quoted
+		 * string.
+		 */
+		sstart = os_strchr(pos, '"');
+		if (sstart)
+			sstart = os_strrchr(sstart + 1, '"');
+		if (!sstart)
+			sstart = pos;
+		end = os_strchr(sstart, '#');
+		if (end)
+			*end-- = '\0';
+		else
+			end = pos + os_strlen(pos) - 1;
+
+		/* Remove trailing white space. */
+		while (end > pos &&
+		       (*end == '\n' || *end == ' ' || *end == '\t' ||
+			*end == '\r'))
+			*end-- = '\0';
+
+		if (*pos == '\0')
+			continue;
+
+		if (_pos)
+			*_pos = pos;
+		return pos;
+	}
+
+	if (_pos)
+		*_pos = NULL;
+	return NULL;
+}
+
+int has_ctrl_char(const u8 *data, size_t len)
+{
+	size_t i;
+
+	for (i = 0; i < len; i++)
+    {
+		if (data[i] < 32 || data[i] == 127)
+			return 1;
+	}
+	return 0;
+}
+
+void str_clear_free(char *str)
+{
+	if (str)
+    {
+		size_t len = os_strlen(str);
+		os_memset(str, 0, len);
+		os_free(str);
+	}
+}
+
+char * dup_binstr(const void *src, size_t len)
+{
+	char *res;
+
+	if (src == NULL)
+		return NULL;
+	res = os_malloc(len + 1);
+	if (res == NULL)
+		return NULL;
+	os_memcpy(res, src, len);
+	res[len] = '\0';
+
+	return res;
+}
+
+/**
+-1  失败
+0  成功
+1  密码未改变
+**/
+static int wpa_config_parse_psk(struct wpa_ssid *ssid, int line,const char *value)
+{
+	if (*value == '"') 
+    {
+		const char *pos;
+		size_t len;
+
+		value++;
+		pos = os_strrchr(value, '"');
+		if (pos)
+			len = pos - value;
+		else
+			len = os_strlen(value);
+		if (len < 8 || len > 63) 
+        {
+			wpa_printf(MSG_ERROR, "Line %d: Invalid passphrase "
+				   "length %lu (expected: 8..63) '%s'.",
+				   line, (unsigned long) len, value);
+			return -1;
+		}
+		wpa_hexdump_ascii_key(MSG_MSGDUMP, "PSK (ASCII passphrase)",(u8 *) value, len);
+		if (has_ctrl_char((u8 *) value, len))
+        {
+			wpa_printf(MSG_ERROR,
+				   "Line %d: Invalid passphrase character",
+				   line);
+			return -1;
+		}
+		if (ssid->passphrase && os_strlen(ssid->passphrase) == len &&
+		    os_memcmp(ssid->passphrase, value, len) == 0) 
+		{
+			/* No change to the previously configured value */
+			return 1;
+		}
+		ssid->psk_set = 0;
+		str_clear_free(ssid->passphrase);
+		ssid->passphrase = dup_binstr(value, len);
+		if (ssid->passphrase == NULL)
+			return -1;
+        
+		return 0;
+	}
+
+	return -1;
+}
+
+
+static int wpa_config_parse_key_mgmt(struct wpa_ssid *ssid, int line,const char *value)
+{
+	int val = 0, last, errors = 0;
+	char *start, *end, *buf;
+
+	buf = os_strdup(value);
+	if (buf == NULL)
+		return -1;
+	start = buf;
+
+	while (*start != '\0')
+    {
+		while (*start == ' ' || *start == '\t')
+			start++;
+		if (*start == '\0')
+			break;
+		end = start;
+		while (*end != ' ' && *end != '\t' && *end != '\0')
+			end++;
+		last = *end == '\0';
+		*end = '\0';
+		if (os_strcmp(start, "WPA-PSK") == 0)
+			val |= WPA_KEY_MGMT_PSK;
+		else if (os_strcmp(start, "WPA-EAP") == 0)
+			val |= WPA_KEY_MGMT_IEEE8021X;
+		else if (os_strcmp(start, "IEEE8021X") == 0)
+			val |= WPA_KEY_MGMT_IEEE8021X_NO_WPA;
+		else if (os_strcmp(start, "NONE") == 0)
+			val |= WPA_KEY_MGMT_NONE;
+		else if (os_strcmp(start, "WPA-NONE") == 0)
+			val |= WPA_KEY_MGMT_WPA_NONE;
+		else {
+			wpa_printf(MSG_ERROR, "Line %d: invalid key_mgmt '%s'",
+				   line, start);
+			errors++;
+		}
+
+		if (last)
+			break;
+		start = end + 1;
+	}
+	os_free(buf);
+
+	if (val == 0)
+    {
+		wpa_printf(MSG_ERROR,"Line %d: no key_mgmt values configured.", line);
+		errors++;
+	}
+
+	if (!errors && ssid->key_mgmt == val)
+		return 1;
+	wpa_printf(MSG_MSGDUMP, "key_mgmt: 0x%x", val);
+	ssid->key_mgmt = val;
+	return errors ? -1 : 0;
+}
+
+static int wpa_config_parse_proto(struct wpa_ssid *ssid, int line,const char *value)
+{
+	int val = 0, last, errors = 0;
+	char *start, *end, *buf;
+
+	buf = os_strdup(value);
+	if (buf == NULL)
+		return -1;
+	start = buf;
+
+	while (*start != '\0')
+    {
+		while (*start == ' ' || *start == '\t')
+			start++;
+		if (*start == '\0')
+			break;
+		end = start;
+		while (*end != ' ' && *end != '\t' && *end != '\0')
+			end++;
+		last = *end == '\0';
+		*end = '\0';
+		if (os_strcmp(start, "WPA") == 0)
+			val |= WPA_PROTO_WPA;
+		else if (os_strcmp(start, "RSN") == 0 ||
+			 os_strcmp(start, "WPA2") == 0)
+			val |= WPA_PROTO_RSN;
+		else if (os_strcmp(start, "OSEN") == 0)
+			val |= WPA_PROTO_OSEN;
+		else {
+			wpa_printf(MSG_ERROR, "Line %d: invalid proto '%s'",
+				   line, start);
+			errors++;
+		}
+
+		if (last)
+			break;
+		start = end + 1;
+	}
+	os_free(buf);
+
+	if (val == 0)
+    {
+		wpa_printf(MSG_ERROR,
+			   "Line %d: no proto values configured.", line);
+		errors++;
+	}
+
+	if (!errors && ssid->proto == val)
+		return 1;
+	wpa_printf(MSG_MSGDUMP, "proto: 0x%x", val);
+	ssid->proto = val;
+	return errors ? -1 : 0;
+}
+
+int wpa_parse_cipher(const char *value)
+{
+	int val = 0, last;
+	char *start, *end, *buf;
+
+	buf = os_strdup(value);
+	if (buf == NULL)
+		return -1;
+	start = buf;
+
+	while (*start != '\0')
+    {
+		while (*start == ' ' || *start == '\t')
+			start++;
+		if (*start == '\0')
+			break;
+		end = start;
+		while (*end != ' ' && *end != '\t' && *end != '\0')
+			end++;
+		last = *end == '\0';
+		*end = '\0';
+		if (os_strcmp(start, "CCMP-256") == 0)
+			val |= WPA_CIPHER_CCMP_256;
+		else if (os_strcmp(start, "GCMP-256") == 0)
+			val |= WPA_CIPHER_GCMP_256;
+		else if (os_strcmp(start, "CCMP") == 0)
+			val |= WPA_CIPHER_CCMP;
+		else if (os_strcmp(start, "GCMP") == 0)
+			val |= WPA_CIPHER_GCMP;
+		else if (os_strcmp(start, "TKIP") == 0)
+			val |= WPA_CIPHER_TKIP;
+		else if (os_strcmp(start, "WEP104") == 0)
+			val |= WPA_CIPHER_WEP104;
+		else if (os_strcmp(start, "WEP40") == 0)
+			val |= WPA_CIPHER_WEP40;
+		else if (os_strcmp(start, "NONE") == 0)
+			val |= WPA_CIPHER_NONE;
+		else if (os_strcmp(start, "GTK_NOT_USED") == 0)
+			val |= WPA_CIPHER_GTK_NOT_USED;
+		else {
+			os_free(buf);
+			return -1;
+		}
+
+		if (last)
+			break;
+		start = end + 1;
+	}
+	os_free(buf);
+
+	return val;
+}
+
+static int wpa_config_parse_cipher(int line, const char *value)
+{
+
+	int val = wpa_parse_cipher(value);
+	if (val < 0) {
+		wpa_printf(MSG_ERROR, "Line %d: invalid cipher '%s'.",
+			   line, value);
+		return -1;
+	}
+	if (val == 0) {
+		wpa_printf(MSG_ERROR, "Line %d: no cipher values configured.",
+			   line);
+		return -1;
+	}
+	return val;
+}
+
+static int wpa_config_parse_pairwise(struct wpa_ssid *ssid, int line,const char *value)
+{
+	int val;
+	val = wpa_config_parse_cipher(line, value);
+	if (val == -1)
+		return -1;
+	if (val & ~WPA_ALLOWED_PAIRWISE_CIPHERS) {
+		wpa_printf(MSG_ERROR, "Line %d: not allowed pairwise cipher "
+			   "(0x%x).", line, val);
+		return -1;
+	}
+
+	if (ssid->pairwise_cipher == val)
+		return 1;
+	wpa_printf(MSG_MSGDUMP, "pairwise: 0x%x", val);
+	ssid->pairwise_cipher = val;
+	return 0;
+}
+static int wpa_config_parse_group(struct wpa_ssid *ssid, int line,const char *value)
+{
+	int val;
+	val = wpa_config_parse_cipher(line, value);
+	if (val == -1)
+		return -1;
+
+	/*
+	 * Backwards compatibility - filter out WEP ciphers that were previously
+	 * allowed.
+	 */
+	val &= ~(WPA_CIPHER_WEP104 | WPA_CIPHER_WEP40);
+
+	if (val & ~WPA_ALLOWED_GROUP_CIPHERS) {
+		wpa_printf(MSG_ERROR, "Line %d: not allowed group cipher "
+			   "(0x%x).", line, val);
+		return -1;
+	}
+
+	if (ssid->group_cipher == val)
+		return 1;
+	wpa_printf(MSG_MSGDUMP, "group: 0x%x", val);
+	ssid->group_cipher = val;
+	return 0;
+}
+struct wpa_ssid * wpa_config_read(const char *name)
+{
+	FILE *f;
+	char buf[512], *pos,*pos2;
+    struct wpa_ssid *apinfo;
+    int sval_len=0;
+    int line=0;
+    
+    apinfo = os_zalloc(sizeof(*apinfo));
+    ASSERT(apinfo != NULL);
+
+	f = fopen(name, "r");
+	if (f == NULL)
+    {
+		wpa_printf(MSG_ERROR, "Failed to open config file '%s',error: %s", name, strerror(errno));
+		os_free(apinfo);
+		return NULL;
+	}
+	while (wpa_config_get_line(buf, sizeof(buf), f, &line, &pos))
+    {
+       pos2 = os_strchr(pos,'=');
+       if(pos2 == NULL)
+       {
+    		wpa_printf(MSG_ERROR, "Line %d: Invalid param '%s'.", line, pos);
+            continue;
+       }
+       printf("%s(%d): Line%d: param=%s\n",__func__,__LINE__,line,pos);
+       if(!os_strncmp(pos,"ssid",pos2 - pos))
+       {
+            pos2++;
+            if (*pos2 == '"')
+            {
+        		const char *pos3;
+        		char *str;
+        		pos2++;
+        		pos3 = os_strrchr(pos2, '"');
+        		if (pos3 == NULL || pos3[1] != '\0')
+        			break;
+        		sval_len = pos3 - pos2;
+        		str = dup_binstr(pos2, sval_len);
+        		if (str == NULL)
+        			break;
+                
+            	if(sval_len > SSID_MAX_LEN || sval_len <= 0)
+                {
+                    wpa_printf(MSG_ERROR,"Line %d: Invalid SSID '%s'.",line,pos2);
+                    break;
+                }
+                else
+                {
+                    apinfo->ssid = str;
+                    continue;
+                }
+
+        	}
+            else
+            {
+                    wpa_printf(MSG_ERROR, "Line %d: Invalid SSID '%s'.", line, pos);
+                    break;
+            }
+       }
+       else if(!os_strncmp(pos,"psk",pos2 - pos))
+       {
+            sval_len = os_strlen(pos) - (pos2-pos);
+            if(wpa_config_parse_psk(apinfo,line,pos2+1) < 0)
+                break;
+            else
+                continue;
+       }
+       else if(!os_strncmp(pos,"key_mgmt",pos2 - pos))
+       {
+            if(wpa_config_parse_key_mgmt(apinfo,line,pos2+1) < 0)
+                break;
+            else
+                continue;
+       }
+       else if(!os_strncmp(pos,"proto",pos2 - pos))
+       {
+            if(wpa_config_parse_proto(apinfo,line,pos2+1) < 0)
+                break;
+            else
+                continue;
+       }
+       else if(!os_strncmp(pos,"pairwise",pos2 - pos))
+       {
+            if(wpa_config_parse_pairwise(apinfo,line,pos2+1) < 0)
+                break;
+            else
+                continue;
+       }
+       else if(!os_strncmp(pos,"group",pos2 - pos))
+       {
+            if(wpa_config_parse_group(apinfo,line,pos2+1) < 0)
+                break;
+            else
+                continue;
+       }
+       else
+       {
+            wpa_printf(MSG_ERROR,"Unknow param %s!\n",pos);
+       }
+    }
+
+
+    fclose(f);
+    return apinfo;
+
+}
+
 /**STA 的基本配置信息，后面可以从flash中读取**/
 struct wpa_ssid * ssid_init(void)
 {
     struct wpa_ssid *apinfo;
 
-    apinfo = os_zalloc(sizeof(*apinfo));
-    ASSERT(apinfo != NULL);
+    apinfo = wpa_config_read("/var/test.conf");
+    printf("ssid=%s,psk=%s,key_mgmt=0x%x,proto=0x%x,pairwise_cipher=0x%x,group_cipher=0x%x\n",
+                apinfo->ssid,apinfo->passphrase,apinfo->key_mgmt,apinfo->proto,
+                apinfo->pairwise_cipher,apinfo->group_cipher);
 
-    apinfo->id = 0;
-    apinfo->ssid = "CMCC-abc888_wpa";
+/***************************************************************
+    
+//    apinfo->ssid = "CMCC-abc888_wpa";
+    os_strlcpy(apinfo->ssid,"CMCC-abc888_wpa",15);
+    apinfo->ssid[15]='\0';
     apinfo->ssid_len = strlen(apinfo->ssid);
-    apinfo->passphrase = "87654321";
+//    apinfo->passphrase = "87654321";
+    os_strlcpy(apinfo->passphrase,"87654321",8);
+    apinfo->passphrase[8]='\0';
+    
     apinfo->key_mgmt = WPA_KEY_MGMT_PSK;
     apinfo->pairwise_cipher = WPA_CIPHER_CCMP;
     apinfo->group_cipher = WPA_CIPHER_TKIP;
     apinfo->proto = WPA_PROTO_RSN;
+****************************************************************/
+    apinfo->id = 0;
+    apinfo->ssid_len = strlen(apinfo->ssid);
     memset(apinfo->psk,0,PMK_LEN);
     apinfo->psk_set = 0;
 
@@ -904,6 +1431,7 @@ struct wpa_sm * sm_init(struct wpa_sm_ctx *ctx)
         sm->pmk_len = PMK_LEN;
     }
     memset(sm->rx_replay_counter,0,WPA_REPLAY_COUNTER_LEN);
+    sm->rx_replay_counter_set = 0;
     /***********************************************/
     
     sm->dot11RSNAConfigPMKLifetime = 43200;
@@ -956,7 +1484,6 @@ void set_rsn_ie(struct wpa_sm *sm)
 
 int main(int argc,char* argv[])
 {
-
     struct wpa_sm *sm=NULL;
     struct wpa_supplicant wpa_s;
     struct l2_packet_data *l2;
@@ -1030,6 +1557,5 @@ int main(int argc,char* argv[])
                     }// end if break; 
            }// end switch 
       }//end while 
-
     return 0;
 }
